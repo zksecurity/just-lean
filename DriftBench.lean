@@ -1,5 +1,6 @@
 import MergeSort.Drift
 import MergeSort.Blocked
+import MergeSort.DriftSort
 open MergeSort
 
 def gen (n : Nat) (seed : UInt64) : Array UInt64 := Id.run do
@@ -60,6 +61,13 @@ def verifyAll : IO Unit := do
         if r != ref then
           bad := bad + 1
           if bad ≤ 10 then IO.println s!"MISMATCH n={n} seed={seed} shape={shape}"
+        let u := UInt64Array.ofArray xs
+        if h : u.size < 2 ^ 62 then
+          count := count + 1
+          let r2 := (DriftSort.sort u h).toArray
+          if r2 != ref then
+            bad := bad + 1
+            if bad ≤ 10 then IO.println s!"MISMATCH (bounds-safe) n={n} seed={seed} shape={shape}"
   IO.println s!"driftsort port verify: {count} sorts over {sizes.length} sizes x 3 seeds x {shapes.length} shapes; mismatches: {bad}"
 
 def timeMs (f : Unit → UInt64Array × UInt64Array) : IO (Float × UInt64Array × UInt64Array) := do
@@ -192,6 +200,13 @@ def main (args : List String) : IO Unit := do
       let r ← IO.lazyPure (fun _ => Drift.sort us)
       let t1 ← IO.monoNanosNow
       IO.println s!"  driftsort port (Lean):  {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
+    for _ in [0:3] do
+      let us ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
+      if h : us.size < 2 ^ 62 then
+        let t0 ← IO.monoNanosNow
+        let r ← IO.lazyPure (fun _ => DriftSort.sort us h)
+        let t1 ← IO.monoNanosNow
+        IO.println s!"  driftsort, bounds-safe: {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
     for _ in [0:2] do
       let us ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
       if h : us.size < 2 ^ 62 then
