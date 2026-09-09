@@ -1,7 +1,7 @@
 # Session report — 2026-09-09 (10:00–15:00 CET grind on "bullet 2")
 
 ## Deliverables (all in `~/code/lean-just-lean/`)
-- `verified/` — Lean 4.33.1 project, 3.1k lines, 19 verified results (18 sort theorems + `mergeKernelS_spec`) on standard axioms, no `sorry`, zero linter
+- `verified/` — Lean 4.33.1 project, 3.2k lines, 20 verified results (18 sort theorems + `mergeKernelS_spec` + `findRun_spec`) on standard axioms, no `sorry`, zero linter
   warnings; `check.sh` builds, cross-checks all sorts on 37 sizes × 3 seeds × 4 input shapes, prints axioms,
   benchmarks. Also builds unchanged on 4.33.0 (`verified-4330/`).
 - Verified sorts: `Fast.sort` (top-down, `sort_toList` = exactly Part 1's `mergeSort`), `BottomUp.sort`,
@@ -58,3 +58,8 @@ is its biggest lever on realistic data. Part 3 design in `PLAN.md` builds run de
 `mergeKernelS` = `mergeKernel` with the driftsort-style fast path (runs already in order ⇒ verified
 `copyRange`), proved with `merge_eq_append` + `runs_in_order`; its spec is literally `mergeKernel_spec`'s,
 so it is a drop-in for the natural-run merge of Part 3 (Rust measurements in `PLAN.md` show where it pays).
+
+## Verified Part 3 building block 2: `MergeSort/FindRun.lean`
+`findRun lo n a` = maximal ascending / strictly descending run from `lo` (descending reversed in place),
+`findRun_spec`: the run is sorted, a permutation of the original slice, frame outside. With `mergeKernelS`
+this is steps 1 and the merge of step 3 of the Part 3 design; what remains is the run stack.

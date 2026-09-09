@@ -57,10 +57,8 @@ The bottom-up sort is oblivious: it costs the same on every shape. driftsort's b
 is not the merge kernel but *finding existing runs* and merging them in a good order. So Part 3 should be
 built in this order, each step verified before the next:
 
-1. **Run detection** (`findRun lo n a : { hi // lo < hi ≤ n }` returning the maximal ascending or strictly
-   descending run, descending runs reversed in place with `reverseRange`). Spec: the slice `[lo, hi)` is
-   sorted afterwards and the contents are a permutation; frame outside. All ingredients exist
-   (`scanFrom_spec`, `reverseRange_spec`, `Sorted`, `slice` lemmas).
+1. **Run detection** — DONE, verified: `FindRun.lean` (`ascEnd`, `descEnd`, `findRun`, `findRun_spec`: the
+   slice `[lo, hi)` is sorted afterwards, a permutation of the original, frame outside).
 2. **Minimum run length**: runs shorter than 32 are extended with `insertionSortRange` (spec exists:
    `insertionSortRange_spec`). This alone makes "8 sorted runs" and "sawtooth" linear-ish.
 3. **Run stack + merge policy**: keep a stack of `(start, len)` of sorted runs (`Array (UInt64 × UInt64)`,
