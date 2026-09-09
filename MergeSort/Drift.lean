@@ -18,12 +18,20 @@ abbrev A := UInt64Array
 def getU (a : @& A) (i : UInt64) : UInt64 := if h : i.toNat < a.size then a.get i h else 0
 @[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); ((uint64_t*)lean_sarray_cptr(_a))[#2] = #3; _a; })"]
 def setU (a : A) (i v : UInt64) : A := if h : i.toNat < a.size then a.set i v h else a
+/-- scratch allocation without touching the memory (UNCHECKED experiment: model is `zeros`; the algorithm
+    never reads scratch it has not written, like Rust's `MaybeUninit` scratch). -/
+@[extern c inline "lean_alloc_sarray(8, lean_unbox(#1), lean_unbox(#1))"]
+def uninit (n : @& Nat) : A := zeros n
+
 @[inline] def get! (a : @& A) (i : UInt64) : UInt64 := getU a i
 @[inline] def set! (a : A) (i v : UInt64) : A := setU a i v
 
 /-- two stores, one exclusivity check (model: two `set!`s) -/
 @[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a); _p[#2] = #3; _p[#4] = #5; _a; })"]
 def set2 (a : A) (i v j w : UInt64) : A := set! (set! a i v) j w
+/-- four stores at arbitrary indices, one exclusivity check (model: four `set!`s) -/
+@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a); _p[#2] = #3; _p[#4] = #5; _p[#6] = #7; _p[#8] = #9; _a; })"]
+def set4i (a : A) (i0 v0 i1 v1 i2 v2 i3 v3 : UInt64) : A := set! (set! (set! (set! a i0 v0) i1 v1) i2 v2) i3 v3
 /-- four consecutive stores, one exclusivity check (model: four `set!`s) -/
 @[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a) + #2; _p[0] = #3; _p[1] = #4; _p[2] = #5; _p[3] = #6; _a; })"]
 def set4 (a : A) (d v0 v1 v2 v3 : UInt64) : A := set! (set! (set! (set! a d v0) (d + 1) v1) (d + 2) v2) (d + 3) v3
@@ -177,7 +185,7 @@ termination_by n.toNat - i.toNat
 decreasing_by u64
 
 /-- `small_sort_general_with_scratch`: sort `v[lo, hi)` (`hi - lo ≤ 32`) using `s[0, len+16)`. -/
-def smallSort (v s : A) (lo hi : UInt64) : A × A :=
+@[inline] def smallSort (v s : A) (lo hi : UInt64) : A × A :=
   let len := hi - lo
   if len < 2 then (v, s)
   else
@@ -301,7 +309,35 @@ def choosePivot (v : @& A) (lo hi : UInt64) : UInt64 :=
 
 /-- The scan of `stable_partition` over `v[i, hi)` with `x < pivot` going left (no pivot inside the range). -/
 def partitionScanLt (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) : A × UInt64 :=
-  if h : i < hi then
+  if h : i < hi ∧ 4 ≤ hi - i then
+    -- four elements per iteration, one exclusivity check (Rust's UNROLL_LEN = 4)
+    have h' : i.toNat < hi.toNat := h.1
+    have hb := UInt64.toNat_lt hi
+    have h4 : 4 ≤ hi.toNat - i.toNat := by
+      have := UInt64.le_iff_toNat_le.mp h.2; rwa [UInt64.toNat_sub_of_le _ _ (UInt64.le_of_lt h.1)] at this
+    let x0 := get! v i
+    let x1 := get! v (i + 1)
+    let x2 := get! v (i + 2)
+    let x3 := get! v (i + 3)
+    let t0 := lt x0 pivot
+    let sr0 := scratchRev - 1
+    let d0 := (if t0 then 0 else sr0) + numLeft
+    let n0 := numLeft + (if t0 then 1 else 0)
+    let t1 := lt x1 pivot
+    let sr1 := sr0 - 1
+    let d1 := (if t1 then 0 else sr1) + n0
+    let n1 := n0 + (if t1 then 1 else 0)
+    let t2 := lt x2 pivot
+    let sr2 := sr1 - 1
+    let d2 := (if t2 then 0 else sr2) + n1
+    let n2 := n1 + (if t2 then 1 else 0)
+    let t3 := lt x3 pivot
+    let sr3 := sr2 - 1
+    let d3 := (if t3 then 0 else sr3) + n2
+    let n3 := n2 + (if t3 then 1 else 0)
+    let s := set4i s d0 x0 d1 x1 d2 x2 d3 x3
+    partitionScanLt v s (i + 4) hi pivot n3 sr3
+  else if h : i < hi then
     have h' : i.toNat < hi.toNat := h
     have hb := UInt64.toNat_lt hi
     let x := get! v i
@@ -312,11 +348,39 @@ def partitionScanLt (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) 
     partitionScanLt v s (i + 1) hi pivot (numLeft + (if towardsLeft then 1 else 0)) scratchRev
   else (s, numLeft)
 termination_by hi.toNat - i.toNat
-decreasing_by u64
+decreasing_by all_goals u64
 
 /-- Same with `x ≤ pivot` going left (the equal-partition comparator `!is_less(pivot, x)`). -/
 def partitionScanLe (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) : A × UInt64 :=
-  if h : i < hi then
+  if h : i < hi ∧ 4 ≤ hi - i then
+    -- four elements per iteration, one exclusivity check (Rust's UNROLL_LEN = 4)
+    have h' : i.toNat < hi.toNat := h.1
+    have hb := UInt64.toNat_lt hi
+    have h4 : 4 ≤ hi.toNat - i.toNat := by
+      have := UInt64.le_iff_toNat_le.mp h.2; rwa [UInt64.toNat_sub_of_le _ _ (UInt64.le_of_lt h.1)] at this
+    let x0 := get! v i
+    let x1 := get! v (i + 1)
+    let x2 := get! v (i + 2)
+    let x3 := get! v (i + 3)
+    let t0 := !(lt pivot x0)
+    let sr0 := scratchRev - 1
+    let d0 := (if t0 then 0 else sr0) + numLeft
+    let n0 := numLeft + (if t0 then 1 else 0)
+    let t1 := !(lt pivot x1)
+    let sr1 := sr0 - 1
+    let d1 := (if t1 then 0 else sr1) + n0
+    let n1 := n0 + (if t1 then 1 else 0)
+    let t2 := !(lt pivot x2)
+    let sr2 := sr1 - 1
+    let d2 := (if t2 then 0 else sr2) + n1
+    let n2 := n1 + (if t2 then 1 else 0)
+    let t3 := !(lt pivot x3)
+    let sr3 := sr2 - 1
+    let d3 := (if t3 then 0 else sr3) + n2
+    let n3 := n2 + (if t3 then 1 else 0)
+    let s := set4i s d0 x0 d1 x1 d2 x2 d3 x3
+    partitionScanLe v s (i + 4) hi pivot n3 sr3
+  else if h : i < hi then
     have h' : i.toNat < hi.toNat := h
     have hb := UInt64.toNat_lt hi
     let x := get! v i
@@ -327,7 +391,7 @@ def partitionScanLe (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) 
     partitionScanLe v s (i + 1) hi pivot (numLeft + (if towardsLeft then 1 else 0)) scratchRev
   else (s, numLeft)
 termination_by hi.toNat - i.toNat
-decreasing_by u64
+decreasing_by all_goals u64
 
 /-- The whole scan: `[lo, pivotPos)`, the pivot, `(pivotPos, hi)`, like Rust's two `loop_end_pos` rounds.
     `scratchRev` after a scan is arithmetic (one decrement per element), so the scans return one pair. -/
@@ -545,7 +609,7 @@ def sort (xs : A) : A :=
     -- driftsort_main: alloc_len = max(max(len - len/2, min(len, 8MB / 8)), SMALL_SORT_GENERAL_SCRATCH_LEN)
     let maxFullAlloc : UInt64 := 8000000 / 8
     let allocLen := max (max (n - n / 2) (min n maxFullAlloc)) smallSortScratchLen
-    let s := zeros allocLen.toNat
+    let s := uninit allocLen.toNat
     let eager := n ≤ smallSortThreshold * 2
     let (v, _) := if eager then driftSortEager xs s 0 n allocLen else driftSortFull xs s 0 n allocLen
     v

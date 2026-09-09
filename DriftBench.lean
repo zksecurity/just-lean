@@ -84,6 +84,22 @@ def phases (n : Nat) : IO Unit := do
     IO.println s!"  {label}: {t1} / {t2} ms"
   twice "one stable partition (scan + copy back)" (fun v s => let (_, v, s) := Drift.stablePartition v s 0 nn (nn / 2) false false; (v, s))
   twice "partition scan only                    " (fun v s => let (s, _) := Drift.partitionScan v s 0 nn (nn / 2) (Drift.get! v (nn/2)) false false; (v, s))
+  let rec parts (lo : UInt64) (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
+    match fuel with
+    | 0 => (v, s)
+    | f + 1 => if lo + 32768 ≤ nn then
+        let (_, v, s) := Drift.stablePartition v s lo (lo + 32768) (lo + 16384) false false
+        parts (lo + 32768) v s f
+      else (v, s)
+  twice "partition of 32K-element ranges (cache) " (fun v s => parts 0 v s (n / 32768 + 1))
+  let rec parts2 (lo : UInt64) (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
+    match fuel with
+    | 0 => (v, s)
+    | f + 1 => if lo + 2048 ≤ nn then
+        let (_, v, s) := Drift.stablePartition v s lo (lo + 2048) (lo + 1024) false false
+        parts2 (lo + 2048) v s f
+      else (v, s)
+  twice "partition of 2K-element ranges (L1)     " (fun v s => parts2 0 v s (n / 2048 + 1))
   twice "copyRange (memcpy) v -> s              " (fun v s => (v, Drift.copyRange v s 0 0 nn))
   twice "copyRangeRev s -> v                    " (fun v s => (Drift.copyRangeRev s v (nn - 1) 0 nn, s))
   let rec blocks (lo : UInt64) (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
