@@ -106,7 +106,8 @@ Scaling (`sortdemo`, verified `sortAdaptive2`, vs `Vec::sort`), ms:
 
 `lake exe sortdemo 10000000` sorts ten million pseudo-random numbers with `sortAdaptive2`
 (`Main.lean`, no `sorry`): 377 ms, peak RSS 167 MB = the 80 MB input + the 80 MB scratch buffer + the
-runtime. The binary is 4.5 MB.
+runtime. The binary is 4.5 MB. For comparison, a minimal Rust program sorting the same data with `Vec::sort` peaks at
+119 MB (driftsort allocates an n/2 scratch buffer).
 
 ## Calling it from C (zero copy)
 
@@ -119,6 +120,13 @@ the result from the same buffer (the sort runs in place when the refcount is 1).
     sorted 10000000 u64 from C via verified Lean merge sort: 378.7 ms, sorted, in place: yes (same buffer)
 
 (The export currently points at `sortBlocked`.)
+
+## Verso smoke test
+
+`../site-smoke` is a minimal Verso (`v4.33.0`) manual that requires this project (the `verified-4330` copy)
+and renders `{docstring MergeSort.mergeSort}`, `{name}` roles and a `#eval` block whose output is checked at
+build time (`leanOutput`). Building Verso from source plus the document took 1 min 38 s; `lake exe site-smoke`
+writes the HTML to `_out/`.
 
 ## Toolchains
 
