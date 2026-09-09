@@ -43,6 +43,45 @@ Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correc
    stack / powersort policy, and driftsort's stable-quicksort engine for unsorted runs (the real source of
    its remaining 1.5× on random data). Each is a self-contained verification target.
 
+### Part 3 design: a verified "driftsort-lite" (proposed build order for the next session)
+Where the remaining time goes on inputs that are not uniformly random (1M `u64`, ms):
+
+| input | Lean `sortBlocked` | Rust same algorithm | driftsort |
+|---|---|---|---|
+| random | 30 | 28 | 19 |
+| 8 sorted runs concatenated | 30 | 28 | 7.3 |
+| sorted + 1% random swaps | 30 | 28 | 14 |
+| sawtooth (sorted runs of 1000) | 30 | 28 | 23 |
+
+The bottom-up sort is oblivious: it costs the same on every shape. driftsort's biggest lever on realistic data
+is not the merge kernel but *finding existing runs* and merging them in a good order. So Part 3 should be
+built in this order, each step verified before the next:
+
+1. **Run detection** (`findRun lo n a : { hi // lo < hi ≤ n }` returning the maximal ascending or strictly
+   descending run, descending runs reversed in place with `reverseRange`). Spec: the slice `[lo, hi)` is
+   sorted afterwards and the contents are a permutation; frame outside. All ingredients exist
+   (`scanFrom_spec`, `reverseRange_spec`, `Sorted`, `slice` lemmas).
+2. **Minimum run length**: runs shorter than 32 are extended with `insertionSortRange` (spec exists:
+   `insertionSortRange_spec`). This alone makes "8 sorted runs" and "sawtooth" linear-ish.
+3. **Run stack + merge policy**: keep a stack of `(start, len)` of sorted runs (`Array (UInt64 × UInt64)`,
+   boxed pairs are fine here: one entry per run, not per element). Invariant: the runs tile `[0, k)`,
+   each run's slice is `Sorted`. Merge policy: powersort's node power, or the simpler "merge while the top
+   two runs have lengths within 2× of each other" (Timsort-style, but proved only for correctness, not
+   for the stack-height bound). Correctness spec is the same shape as `passLoop_spec`: after each merge
+   the tiling and `Sorted` invariants hold; termination by the number of runs.
+   The merge itself is `mergeKernel` (bidirectional when the runs are equal, one-sided otherwise) into the
+   scratch buffer and back (`copyRange`), or a ping-pong that alternates buffers per merge level.
+4. **Unsorted runs**: driftsort sorts them with a stable quicksort; a verified in-place stable quicksort is
+   the largest single proof (partition permutes and preserves order among equals). The bottom-up
+   `sortBlocked` on the run is a correct stand-in first (spec exists) and keeps random inputs at 30 ms.
+5. **Small sorts**: `sort4_stable`/`sort8_stable` networks with branchless selects, then `insertionSortRange`
+   from 8/4 upward; +5% at 10M measured. Proof: 5 comparators, `decide`-able on the abstract permutation.
+
+Expected outcome: random stays at ~30 ms (28 with the small-sort networks), the run-based shapes drop to
+driftsort territory (8 runs: ~8 ms; 1% swaps: needs the stable quicksort or a Galloping merge to reach 14).
+Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of loop): run detection 150,
+run stack 300, stable quicksort 500+.
+
 ## Numbers to quote (1M / 10M `u64`, ms)
 `sortBlocked` 30–35 / 364–440 · `sort2` 30–34 / 450–500 · `sort16` 46 / 568 · `BottomUp.sort` 48 / 600 · `Fast.sort` 68 / 780 ·
 Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-notation loop 1010 / 13072.

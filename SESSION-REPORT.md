@@ -43,3 +43,9 @@ Peak RSS 10M: 167 MB (Rust 119 MB). Clean build of all proofs: 52 s.
 - Sorting networks (sort8) for run creation: +5% at 10M, nothing at 1M (Experiments.lean).
 - `perf stat` is unavailable on this machine (`perf_event_paranoid = 4`), so the driftsort gap was attributed
   by porting the exact Lean algorithm to Rust (identical timings) rather than by hardware counters.
+
+## Input-shape study (1M, ms): where driftsort's remaining advantage comes from
+random: Lean 30 / Rust same 28 / driftsort 19 · 8 sorted runs: 30 / 28 / 7.3 · sorted + 1% swaps: 30 / 28 / 14 ·
+sawtooth of 1000: 30 / 28 / 23. The bottom-up sort is oblivious to input shape; driftsort's run detection
+is its biggest lever on realistic data. Part 3 design in `PLAN.md` builds run detection first.
+(`msbench N random|runs8|swaps1|sawtooth`, `lab/rust`: `msort N <shape>`.)

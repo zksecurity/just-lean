@@ -16,9 +16,38 @@ def gen (n : Nat) (seed : UInt64) : Array UInt64 := Id.run do
 
 def main (args : List String) : IO Unit := do
   let n := (args.head? >>= String.toNat?).getD 1000000
-  let xs := gen n 42
+  let shape := (args.drop 1).headD "random"
+  let xs0 := gen n 42
+  let xs : Array UInt64 :=
+    if shape == "runs8" then
+      let r := max 1 (n / 8)
+      Id.run do
+        let mut out := Array.mkEmpty n
+        let mut i := 0
+        while i < n do
+          out := out ++ (xs0.extract i (min n (i + r))).qsort (· < ·)
+          i := i + r
+        return out
+    else if shape == "swaps1" then Id.run do
+      let mut v := xs0.qsort (· < ·)
+      let mut s : UInt64 := 7
+      for _ in [0:n / 100] do
+        s := s ^^^ (s >>> 12); s := s ^^^ (s <<< 25); s := s ^^^ (s >>> 27)
+        let i := ((s * 0x2545F4914F6CDD1D) % n.toUInt64).toNat
+        s := s ^^^ (s >>> 12); s := s ^^^ (s <<< 25); s := s ^^^ (s >>> 27)
+        let j := ((s * 0x2545F4914F6CDD1D) % n.toUInt64).toNat
+        v := v.swapIfInBounds i j
+      return v
+    else if shape == "sawtooth" then Id.run do
+      let mut out := Array.mkEmpty n
+      let mut i := 0
+      while i < n do
+        out := out ++ (xs0.extract i (min n (i + 1000))).qsort (· < ·)
+        i := i + 1000
+      return out
+    else xs0
   let us := UInt64Array.ofArray xs
-  IO.println s!"n = {n}"
+  IO.println s!"n = {n} shape = {shape}"
   let t0 ← IO.monoNanosNow
   if h : us.size < 2 ^ 63 then
   let r ← IO.lazyPure (fun _ => Fast.sort us h)
