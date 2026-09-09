@@ -17,6 +17,8 @@
 - `README.md` (numbers, 10 lessons, TCB), `PLAN.md` (tutorial chapters).
 
 ## Numbers (ms, 1M / 10M random u64)
+Medians of 5 idle-machine runs at 1M: Lean `sortBlocked` 30.1 (29.8–30.2) · Rust same algorithm 29.0 (28.7–29.2) ·
+Lean `BottomUp.sort` 49.0 · `Fast.sort` 69.8 · Rust plain 81.1 · driftsort 18.4. Lean/Rust same-algorithm ratio 1.04.
 sortAdaptive2/sortBlocked 30 / 364 · Rust same algorithm 29 / 366 · driftsort 19 / 271 ·
 sort2 30–34 / 410–500 · sort16 46 / 568 · BottomUp.sort 48 / 600 · Fast.sort 68 / 780 ·
 Rust plain merge sort 82 / 965 · do-notation version 1010 / 13072.

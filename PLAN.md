@@ -170,6 +170,7 @@ Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of lo
 run stack 300, stable quicksort 500+.
 
 ## Numbers to quote (1M / 10M `u64`, ms)
+Medians of 5 idle runs at 1M: `sortBlocked` 30.1 · Rust same algorithm 29.0 · `BottomUp.sort` 49.0 · `Fast.sort` 69.8 · Rust plain 81.1 · driftsort 18.4.
 `sortBlocked` 30–35 / 364–440 · `sort2` 30–34 / 450–500 · `sort16` 46 / 568 · `BottomUp.sort` 48 / 600 · `Fast.sort` 68 / 780 ·
 Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-notation loop 1010 / 13072.
 
