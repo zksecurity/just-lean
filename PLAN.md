@@ -104,6 +104,13 @@ exactly at the defects); (d) never compute
 `a.size < 2^64` at runtime in a loop, thread it as an erased hypothesis (the Nat comparison against a bignum
 made the scan 10× slower: 2.3 ms → 0.2 ms).
 
+**Skip-in-order merges, measured in Rust on the fixed-width blocked sort** (`lab/rust`, "skip in-order
+merges"; 1M ms, plain → with skip): random 28.8 → 31.5 (the extra branch mispredicts at small widths),
+1% swaps 29.3 → 24.9, sawtooth 28.8 → 21.0, 8 runs 29.2 → 13.6. Restricting the skip to widths ≥ 64 removes
+the random-input cost (29.0) but also most of the gain (8 runs 19.2, swaps 28.8, sawtooth 26.9). So the
+skip belongs in the natural-run merge (where merges are between long runs) rather than in the bottom-up
+levels, which is exactly what driftsort does.
+
 Expected outcome: random stays at ~30 ms (28 with the small-sort networks), the run-based shapes drop to
 driftsort territory (8 runs: ~8 ms; 1% swaps: needs the stable quicksort or a Galloping merge to reach 14).
 Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of loop): run detection 150,
