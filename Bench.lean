@@ -9,15 +9,17 @@ import MergeSort.SmallRuns
 open MergeSort
 
 /-- Run former: verified `sort8P` on every full block of 8, threading both buffers (timing only;
-    the tail is left as is). -/
+    the tail is left as is). Returns (modified src, dst with sorted 8-runs). -/
 def sort8All (n lo : UInt64) (src dst : UInt64Array) (hssz : src.size < 2 ^ 64) (hdsz : dst.size < 2 ^ 64)
-    (hs : n.toNat ≤ src.size) (hd : n.toNat ≤ dst.size) : UInt64Array :=
+    (hs : n.toNat ≤ src.size) (hd : n.toNat ≤ dst.size) :
+    { p : UInt64Array × UInt64Array // p.1.size = src.size ∧ p.2.size = dst.size } :=
   if h : lo < n ∧ 8 ≤ n - lo then
     have h2 : lo.toNat < n.toNat := h.1
     have h1 : lo.toNat + 8 ≤ n.toNat := by have := UInt64.le_iff_toNat_le.mp h.2; u64
     let r := BottomUp.sort8P lo src dst hssz hdsz (by omega) (by omega)
-    sort8All n (lo + 8) r.1.1 r.1.2 (by rw [r.2.1]; exact hssz) (by rw [r.2.2]; exact hdsz) (by rw [r.2.1]; exact hs) (by rw [r.2.2]; exact hd)
-  else dst
+    let q := sort8All n (lo + 8) r.1.1 r.1.2 (by rw [r.2.1]; exact hssz) (by rw [r.2.2]; exact hdsz) (by rw [r.2.1]; exact hs) (by rw [r.2.2]; exact hd)
+    ⟨q.1, q.2.1.trans r.2.1, q.2.2.trans r.2.2⟩
+  else ⟨(src, dst), rfl, rfl⟩
 termination_by n.toNat - lo.toNat
 decreasing_by u64
 
@@ -76,7 +78,15 @@ def main (args : List String) : IO Unit := do
     have hn : us.size.toUInt64.toNat = us.size := by simp; omega
     let r8 ← IO.lazyPure (fun _ => sort8All us.size.toUInt64 0 us (UInt64Array.zeros us.size) (by omega) (by simp; omega) (by rw [hn]; omega) (by rw [hn, UInt64Array.size_zeros]; omega))
     let t1 ← IO.monoNanosNow
-    IO.println s!"run former: verified sort8 on all blocks of 8: {(t1 - t0).toFloat / 1000000.0} ms [size {r8.size}]"
+    IO.println s!"run former: verified sort8 on all blocks of 8: {(t1 - t0).toFloat / 1000000.0} ms [size {r8.1.2.size}]"
+    if us.size % 8 == 0 then
+      let ref8 := xs.qsort (· < ·)
+      let t0 ← IO.monoNanosNow
+      let rs ← IO.lazyPure (fun _ =>
+        let p := sort8All us.size.toUInt64 0 us (UInt64Array.zeros us.size) (by omega) (by simp; omega) (by rw [hn]; omega) (by rw [hn, UInt64Array.size_zeros]; omega)
+        (BottomUp.widthLoop2 us.size.toUInt64 8 p.1.2 p.1.1 (by omega) (by rw [p.2.2, UInt64Array.size_zeros, hn]) (by rw [p.2.1, hn]) (by simp)).1)
+      let t1 ← IO.monoNanosNow
+      IO.println s!"sort8 runs + bidi width loop from 8 (verified pieces, unverified glue): {(t1 - t0).toFloat / 1000000.0} ms [{if rs.toArray == ref8 then "exact match" else "WRONG"}]"
     if h8 : 8 < us.size then
       let t0 ← IO.monoNanosNow
       let ri ← IO.lazyPure (fun _ => BottomUp.sortBlocks us.size.toUInt64 8 0 us (by omega) (by rw [hn]; omega) (by rw [hn]; omega) (by rw [hn]; simp; omega))

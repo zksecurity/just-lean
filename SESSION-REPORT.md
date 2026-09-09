@@ -81,6 +81,10 @@ A 5-comparator sorting network on four values built from branchless `mn`/`mx` se
 exactly driftsort's `sort8_stable`, with `sort8_spec` (sorted, permutation, frame) composed from `sort4_spec`,
 `net4_sorted`/`net4_perm` and `mergeKernel_spec` in 40 lines. Part 3 step 5 (small sorts) is therefore verified.
 Measured as a run former over 1M elements (`msbench`, "run former" lines): verified `sort8P` on all blocks of 8 = 4.7 ms
-vs verified insertion sort on blocks of 8 = 6.9 ms. Pitfall found on the way (worth a tutorial paragraph): a loop
+vs verified insertion sort on blocks of 8 = 6.9 ms. As a full pipeline (`sort8P` runs, then the verified bidirectional width loop from width 8, glue unverified,
+output exact): 33.6–38 ms at 1M vs `sort2` 31–35 (a wash: the 4.7 ms network pass buys three merge levels),
+481 vs 498 ms at 10M (3%). So the networks only pay inside an in-cache small sort, as driftsort uses them,
+not as a run former for the cache-oblivious bottom-up passes.
+Pitfall found on the way (worth a tutorial paragraph): a loop
 that keeps its own reference to `src` while `sort8` sorts `src` in place makes every block copy the whole array
 (24 000 ms instead of 4.7 ms); returning both buffers as a pair (`sort8P`) fixes it, exactly like `Blocked.lean`.

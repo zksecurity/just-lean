@@ -92,7 +92,9 @@ built in this order, each step verified before the next:
    `bidirectional_merge` of the two halves back into place. The unstable variant (`ipnsort`) uses
    `sort9_optimal`/`sort13_optimal` networks. Verified — DONE: `Net4.lean` has the 4-element network (`net4_sorted`, `net4_perm`, exhaustive case
    split + `omega`, 1.7 s), the in-place `sort4` (`sort4_spec`) and `sort8` = two `sort4` + `mergeKernel`
-   (`sort8_spec`), i.e. driftsort's `sort8_stable`. Measured as a run former at 1M: `sort8P` 4.7 ms vs insertion blocks of 8: 6.9 ms.
+   (`sort8_spec`), i.e. driftsort's `sort8_stable`. Measured as a run former at 1M: `sort8P` 4.7 ms vs insertion blocks of 8: 6.9 ms; as a full pipeline
+   (`sort8P` runs + `widthLoop2` from 8) 34–38 ms vs `sort2` 31–35 at 1M, 481 vs 498 at 10M: no real gain
+   outside an in-cache small sort.
    Remaining: use `sort8P` as the run former in a verified sort (a `sortBlocks`-style loop with `sort8P_spec`
    in place of `insertionSortRange_spec`; the loop must thread both buffers, see the 24 s pitfall in
    `SESSION-REPORT.md`). Measured +5% at 10M with an unverified `net8`.
