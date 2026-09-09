@@ -16,3 +16,6 @@ lean_exe doloop where
   root := `DoLoop
 lean_exe sortdemo where
   root := `Main
+
+lean_exe naturalruns where
+  root := `NaturalRuns
