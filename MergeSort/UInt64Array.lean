@@ -46,6 +46,25 @@ def zeros (n : @& Nat) : UInt64Array := ⟨Array.replicate n 0⟩
 @[simp] theorem size_zeros (n : Nat) : (zeros n).size = n := by simp [zeros, size]
 @[simp] theorem size_mk (d : Array UInt64) : (mk d).size = d.size := rfl
 
+/-- Two writes with one exclusivity check. Logically two `set`s; the C implements exactly that. -/
+@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a); _p[#2] = #3; _p[#4] = #5; _a; })"]
+def set2 (a : UInt64Array) (i v j w : UInt64) (hi : i.toNat < a.size) (hj : j.toNat < a.size) : UInt64Array :=
+  (a.set i v hi).set j w (by simpa using hj)
+
+@[simp] theorem size_set2 (a : UInt64Array) (i v j w : UInt64) (hi hj) : (set2 a i v j w hi hj).size = a.size := by
+  simp [set2]
+
+/-- Four consecutive writes with one exclusivity check. Logically four `set`s. -/
+@[extern c inline "({ lean_object* _a = #2; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a) + #1; _p[0] = #3; _p[1] = #4; _p[2] = #5; _p[3] = #6; _a; })"]
+def set4 (lo : UInt64) (a : UInt64Array) (v0 v1 v2 v3 : UInt64) (h : lo.toNat + 4 ≤ a.size) (hsz : a.size < 2 ^ 64) : UInt64Array :=
+  have e1 : (lo + 1).toNat = lo.toNat + 1 := by simp only [UInt64.toNat_add, UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod]; omega
+  have e2 : (lo + 2).toNat = lo.toNat + 2 := by simp only [UInt64.toNat_add, UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod]; omega
+  have e3 : (lo + 3).toNat = lo.toNat + 3 := by simp only [UInt64.toNat_add, UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod]; omega
+  (((a.set lo v0 (by omega)).set (lo + 1) v1 (by simp; omega)).set (lo + 2) v2 (by simp; omega)).set (lo + 3) v3 (by simp; omega)
+
+@[simp] theorem size_set4 (lo : UInt64) (a : UInt64Array) (v0 v1 v2 v3 : UInt64) (h hsz) : (set4 lo a v0 v1 v2 v3 h hsz).size = a.size := by
+  simp [set4]
+
 theorem get_set (a : UInt64Array) (i j : UInt64) (v : UInt64) (hi hj) :
     (a.set i v hi).get j hj = if i = j then v else a.get j (by simpa using hj) := by
   simp only [get, set, Array.getElem_set]
@@ -87,5 +106,5 @@ macro_rules
   | `(tactic| u64) => `(tactic|
     ((try simp only [UInt64.toNat_add, UInt64.toNat_sub, UInt64.toNat_mul, UInt64.toNat_div, UInt64.toNat_ofNat,
         UInt64.le_iff_toNat_le, UInt64.lt_iff_toNat_lt, Nat.reducePow, Nat.reduceMod,
-        UInt64Array.size_set, UInt64Array.size_zeros] at *)
+        UInt64Array.size_set, UInt64Array.size_set2, UInt64Array.size_set4, UInt64Array.size_zeros] at *)
      <;> omega))

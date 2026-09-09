@@ -25,7 +25,7 @@ def mergeBidi (mid hi i j k i' j' k' cnt : UInt64) (src dst : UInt64Array)
     (hk1 : k.toNat + cnt.toNat = mid.toNat := by u64) (hk2 : k'.toNat = mid.toNat + cnt.toNat := by u64) :
     { b : UInt64Array // b.size = dst.size } :=
   if hc : 0 < cnt then
-    have hc : 0 < cnt.toNat := hc
+    have hc' : (0 : UInt64).toNat < cnt.toNat := UInt64.lt_iff_toNat_lt.mp hc
     -- front step (ties: left)
     let x := src.get i
     let y := src.get j

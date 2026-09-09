@@ -152,9 +152,12 @@ the small sort's odd-length final merge is one-sided, the physical merge goes th
 and back, the scratch has the size of the input, the run stack is a list, the pivot position is not
 special-cased in the partition, and the final "is the collapsed run the whole range" check is a runtime test
 instead of a stack invariant. Speed of the bounds-safe version at 1M (input handed over uniquely):
-random 41 ms (lab port 28, Rust 19), 8 runs 5.6, sorted 1.0, 16 distinct values 9.3; the difference to the
-lab port is the absence of batched stores and of the `memcpy`/vectorised copies (next step: the same C as
-proof-carrying primitives with the loop as model).
+random 41 ms (lab port 28, Rust 19), 8 runs 5.6, sorted 1.0, 16 distinct values 9.3; then made faster with the same C as
+proof-carrying primitives whose logical body is the verified loop: `copyRange` = `memcpy`, `copyRev` = a
+vectorisable C loop, `set4` (one exclusivity check, four stores) in the `sort4` network: 41 → 36.6–37.4 ms at 1M
+(lab port 27.9, Rust 18.7), 432 ms at 10M (lab 344, Rust 270). The rest of the gap is the per-shift stores of
+the insertion stage, the two stores per step of the bidirectional merge (a `set2` primitive exists, but the
+`mergeBidi` proof would need its own `at'`/`slice` lemmas for it), and the partition scan's per-element `set`.
 Proof-engineering lessons of the night: (1) a `have h : … := h` that shadows the guard with its `Nat` form
 breaks `simp` on the unfolded definition (auxiliary proof lemmas expect the other type); derive it under a
 new name. (2) A `let`-bound length inside `omega` goals is a separate atom; state facts after the `let`

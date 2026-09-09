@@ -69,8 +69,7 @@ def sort4 (lo : UInt64) (a : UInt64Array) (hsz : a.size < 2 ^ 64 := by u64)
   let d2 := mx b1 d1
   let b3 := mn c2 b2
   let c3 := mx c2 b2
-  ⟨(((a.set lo a2).set (lo + 1) b3 (by simp; omega)).set (lo + 2) c3 (by simp; omega)).set (lo + 3) d2 (by simp; omega),
-    by simp⟩
+  ⟨set4 lo a a2 b3 c3 d2 h hsz, by simp⟩
 
 theorem sort4_spec (lo : UInt64) (a : UInt64Array) hsz h :
     (sort4 lo a hsz h).1.slice lo.toNat 4 =
@@ -79,7 +78,7 @@ theorem sort4_spec (lo : UInt64) (a : UInt64Array) hsz h :
   have e1 : (lo + 1).toNat = lo.toNat + 1 := by u64g
   have e2 : (lo + 2).toNat = lo.toNat + 2 := by u64g
   have e3 : (lo + 3).toNat = lo.toNat + 3 := by u64g
-  unfold sort4 net4
+  unfold sort4 net4 set4
   dsimp only
   refine ⟨?_, fun x hx => ?_⟩
   · simp only [show (4 : Nat) = 0 + 1 + 1 + 1 + 1 from rfl, slice_succ, slice_zero, List.nil_append,
