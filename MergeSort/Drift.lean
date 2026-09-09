@@ -5,7 +5,7 @@ import MergeSort.UInt64Array
 Sources: `lab/driftsort-src/{drift,merge,quicksort,smallsort,shared_mod,shared_pivot}.rs` (rust-lang/rust
 master, Sept 2026). Every function below mirrors one Rust function; names are kept. The comparison is
 `is_less a b = a < b`. All accesses are bounds-checked (`get!`/`set!` return 0 / leave the array unchanged
-when out of range); everything is total (`termination_by`), nothing is `partial`, nothing is `sorry`.
+when out of range); everything is total (`termination_by`), nothing is `partial`, no proof is admitted.
 Both buffers are threaded through every call as a pair so that writes stay in place.
 -/
 namespace Drift
