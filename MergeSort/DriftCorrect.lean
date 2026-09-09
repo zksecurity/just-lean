@@ -373,4 +373,218 @@ theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
         simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
         rw [C2f, C1, C2]
 
+/-! ## The stable partition -/
+
+/-- `copyRev`: `dst[k + j] = src[last - j]` for `j ∈ [j0, n)`, everything else unchanged. -/
+theorem copyRev_spec (src : A) (k last n : UInt64) :
+    ∀ (m : Nat) (j : UInt64) (dst : A) hdsz hk hl hls hj, m = n.toNat - j.toNat →
+    (∀ x, j.toNat ≤ x → x < n.toNat → (copyRev src dst k last j n hdsz hk hl hls hj).1.at' (k.toNat + x) = src.at' (last.toNat - x)) ∧
+    (∀ x, (x < k.toNat + j.toNat ∨ k.toNat + n.toNat ≤ x) → (copyRev src dst k last j n hdsz hk hl hls hj).1.at' x = dst.at' x) := by
+  intro m
+  induction m using Nat.strongRecOn with
+  | _ m ih =>
+  intro j dst hdsz hk hl hls hj hm
+  rw [copyRev]
+  split
+  · rename_i h
+    have h : j.toNat < n.toNat := h
+    have hb := UInt64.toNat_lt last
+    have ekj : (k + j).toNat = k.toNat + j.toNat := toNat_add_of_lt _ _ (by omega)
+    have elj : (last - j).toNat = last.toNat - j.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by omega))
+    have ej1 : (j + 1).toNat = j.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
+    dsimp only
+    simp only [castSize_val]
+    obtain ⟨A1, B1⟩ := ih (n.toNat - (j + 1).toNat) (by omega) (j + 1)
+      (dst.set (k + j) (src.get (last - j) (by rw [elj]; omega)) (by rw [ekj]; omega))
+      (by simp; exact hdsz) (by simp; exact hk) hl hls (by omega) rfl
+    refine ⟨fun x hx1 hx2 => ?_, fun x hx => ?_⟩
+    · by_cases hxj : x = j.toNat
+      · subst hxj
+        rw [B1 _ (Or.inl (by omega)), at'_set, if_pos ekj, get_eq_at', elj]
+      · rw [A1 x (by omega) hx2]
+    · rw [B1 x (by omega)]
+      exact at'_set_ne _ _ _ _ _ (by omega)
+  · rename_i h
+    have h : ¬ j.toNat < n.toNat := h
+    exact ⟨fun x hx1 hx2 => by omega, fun _ _ => rfl⟩
+
+/-- Reading a slice through `copyRev`: the reversed source slice. -/
+theorem copyRev_slice (src dst : A) (k last n : UInt64) hdsz hk hl hls hj :
+    (copyRev src dst k last 0 n hdsz hk hl hls hj).1.slice k.toNat n.toNat = (src.slice (last.toNat + 1 - n.toNat) n.toNat).reverse := by
+  obtain ⟨A1, _⟩ := copyRev_spec src k last n n.toNat 0 dst hdsz hk hl hls hj rfl
+  apply List.ext_getElem
+  · simp
+  · intro i h1 h2
+    simp only [slice, List.getElem_map, List.getElem_range, List.getElem_reverse, List.length_map, List.length_range]
+    have hi : i < n.toNat := by simpa using h1
+    rw [A1 i (Nat.zero_le _) hi]
+    congr 1; omega
+
+theorem copyRev_frame (src dst : A) (k last n : UInt64) hdsz hk hl hls hj (off len : Nat)
+    (h : off + len ≤ k.toNat ∨ k.toNat + n.toNat ≤ off) :
+    (copyRev src dst k last 0 n hdsz hk hl hls hj).1.slice off len = dst.slice off len := by
+  obtain ⟨_, B1⟩ := copyRev_spec src k last n n.toNat 0 dst hdsz hk hl hls hj rfl
+  apply slice_congr; intro t ht; exact B1 _ (by simp; omega)
+
+/-- The two parts of a partition, as list filters. -/
+def leftPart (eq : Bool) (pivot : UInt64) (l : List UInt64) : List UInt64 := l.filter (goesLeft eq pivot)
+def rightPart (eq : Bool) (pivot : UInt64) (l : List UInt64) : List UInt64 := l.filter (fun x => !goesLeft eq pivot x)
+
+theorem leftPart_append (eq : Bool) (pivot : UInt64) (l₁ l₂ : List UInt64) :
+    leftPart eq pivot (l₁ ++ l₂) = leftPart eq pivot l₁ ++ leftPart eq pivot l₂ := List.filter_append _ _
+theorem rightPart_append (eq : Bool) (pivot : UInt64) (l₁ l₂ : List UInt64) :
+    rightPart eq pivot (l₁ ++ l₂) = rightPart eq pivot l₁ ++ rightPart eq pivot l₂ := List.filter_append _ _
+theorem leftPart_singleton_pos (eq : Bool) (pivot x : UInt64) (h : goesLeft eq pivot x = true) : leftPart eq pivot [x] = [x] := by
+  simp [leftPart, h]
+theorem leftPart_singleton_neg (eq : Bool) (pivot x : UInt64) (h : goesLeft eq pivot x = false) : leftPart eq pivot [x] = [] := by
+  simp [leftPart, h]
+theorem rightPart_singleton_pos (eq : Bool) (pivot x : UInt64) (h : goesLeft eq pivot x = true) : rightPart eq pivot [x] = [] := by
+  simp [rightPart, h]
+theorem rightPart_singleton_neg (eq : Bool) (pivot x : UInt64) (h : goesLeft eq pivot x = false) : rightPart eq pivot [x] = [x] := by
+  simp [rightPart, h]
+theorem leftPart_append_rightPart_perm (eq : Bool) (pivot : UInt64) (l : List UInt64) :
+    (leftPart eq pivot l ++ rightPart eq pivot l).Perm l := List.filter_append_perm _ _
+
+/-- The scan invariant: the left part so far at the front of `s[lo, ..)`, the right part so far at the
+    back of `s[.., hi)` in reverse. -/
+theorem partScan_spec (v : A) (lo hi pivot : UInt64) (eq : Bool) :
+    ∀ (m : Nat) (s : A) (i nl : UInt64) hv hs hssz hi1 hi2 hnl, m = hi.toNat - i.toNat →
+    s.slice lo.toNat nl.toNat = leftPart eq pivot (v.slice lo.toNat (i.toNat - lo.toNat)) →
+    (s.slice (hi.toNat - (i.toNat - lo.toNat - nl.toNat)) (i.toNat - lo.toNat - nl.toNat)).reverse
+        = rightPart eq pivot (v.slice lo.toNat (i.toNat - lo.toNat)) →
+    (partScan v s lo hi i nl pivot eq hv hs hssz hi1 hi2 hnl).1.1.slice lo.toNat
+        (partScan v s lo hi i nl pivot eq hv hs hssz hi1 hi2 hnl).1.2.toNat
+      = leftPart eq pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ((partScan v s lo hi i nl pivot eq hv hs hssz hi1 hi2 hnl).1.1.slice
+        (lo.toNat + (partScan v s lo hi i nl pivot eq hv hs hssz hi1 hi2 hnl).1.2.toNat)
+        (hi.toNat - lo.toNat - (partScan v s lo hi i nl pivot eq hv hs hssz hi1 hi2 hnl).1.2.toNat)).reverse
+      = rightPart eq pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (partScan v s lo hi i nl pivot eq hv hs hssz hi1 hi2 hnl).1.1.at' x = s.at' x := by
+  intro m
+  induction m using Nat.strongRecOn with
+  | _ m ih =>
+  intro s i nl hv hs hssz hi1 hi2 hnl hm HL HR
+  rw [partScan]
+  split
+  · rename_i h
+    have hlt : i.toNat < hi.toNat := UInt64.lt_iff_toNat_lt.mp h
+    have hb := UInt64.toNat_lt hi
+    dsimp only
+    -- the element and where it goes
+    have er : (i - lo - nl).toNat = i.toNat - lo.toNat - nl.toNat := by
+      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hi1)]; omega)),
+        UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hi1)]
+    have e1 : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
+    have e0 : (hi - 1).toNat = hi.toNat - 1 := by
+      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp; omega))]; simp
+    have e2 : (hi - 1 - (i - lo - nl)).toNat = hi.toNat - 1 - (i.toNat - lo.toNat - nl.toNat) := by
+      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [e0, er]; omega)), e0, er]
+    have ei : (i + 1).toNat = i.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
+    have hx : v.get i (by omega) = v.at' i.toNat := get_eq_at' _ _ _
+    have hsl : v.slice lo.toNat (i.toNat + 1 - lo.toNat) = v.slice lo.toNat (i.toNat - lo.toNat) ++ [v.at' i.toNat] := by
+      rw [show i.toNat + 1 - lo.toNat = (i.toNat - lo.toNat) + 1 by omega, slice_succ,
+        show lo.toNat + (i.toNat - lo.toNat) = i.toNat by omega]
+    -- the recursive call, on either destination (the conditionals stay inside the terms; they are
+    -- evaluated only in the proof-free side conditions)
+    have hg : v.get i (by omega) = v.at' i.toNat := hx
+    by_cases hgl : goesLeft eq pivot (v.at' i.toNat) = true
+    · have hgl' : goesLeft eq pivot (v.get i (by omega)) = true := by rw [hg]; exact hgl
+      have en : (nl + (if goesLeft eq pivot (v.get i (by omega)) = true then (1 : UInt64) else 0)).toNat = nl.toNat + 1 := by
+        rw [if_pos hgl']; exact toNat_add_of_lt _ _ (by simp; omega)
+      have eidx : (if goesLeft eq pivot (v.get i (by omega)) = true then lo + nl else hi - 1 - (i - lo - nl)).toNat = lo.toNat + nl.toNat := by
+        rw [if_pos hgl', e1]
+      have H := ih (hi.toNat - (i + 1).toNat) (by omega)
+        (s.set (if goesLeft eq pivot (v.get i (by omega)) = true then lo + nl else hi - 1 - (i - lo - nl)) (v.get i (by omega))
+          (by rw [eidx]; omega))
+        (i + 1) (nl + (if goesLeft eq pivot (v.get i (by omega)) = true then (1 : UInt64) else 0)) hv (by simp; exact hs)
+        (by simp; exact hssz) (by omega) (by omega) (by rw [en, ei]; omega) rfl
+        (by -- left part grows by x
+          rw [en, ei, slice_succ, at'_set, if_pos eidx, slice_set_of_not_mem _ _ _ _ _ _ (Or.inr (by rw [eidx]; omega)), HL, hsl,
+            leftPart_append, leftPart_singleton_pos _ _ _ hgl, hg])
+        (by -- right part unchanged
+          rw [en, ei, hsl, rightPart_append, rightPart_singleton_pos _ _ _ hgl, List.append_nil, ← HR,
+            show i.toNat + 1 - lo.toNat - (nl.toNat + 1) = i.toNat - lo.toNat - nl.toNat by omega,
+            slice_set_of_not_mem _ _ _ _ _ _ (Or.inl (by rw [eidx]; omega))])
+      exact ⟨H.1, H.2.1, fun x hx => (H.2.2 x hx).trans (at'_set_ne _ _ _ _ _ (by rw [eidx]; omega))⟩
+    · have hglf : goesLeft eq pivot (v.at' i.toNat) = false := by simpa using hgl
+      have hgl' : ¬ goesLeft eq pivot (v.get i (by omega)) = true := by rw [hg]; simp [hglf]
+      have en : (nl + (if goesLeft eq pivot (v.get i (by omega)) = true then (1 : UInt64) else 0)).toNat = nl.toNat := by
+        rw [if_neg hgl']; simp
+      have eidx : (if goesLeft eq pivot (v.get i (by omega)) = true then lo + nl else hi - 1 - (i - lo - nl)).toNat =
+          hi.toNat - 1 - (i.toNat - lo.toNat - nl.toNat) := by
+        rw [if_neg hgl', e2]
+      have H := ih (hi.toNat - (i + 1).toNat) (by omega)
+        (s.set (if goesLeft eq pivot (v.get i (by omega)) = true then lo + nl else hi - 1 - (i - lo - nl)) (v.get i (by omega))
+          (by rw [eidx]; omega))
+        (i + 1) (nl + (if goesLeft eq pivot (v.get i (by omega)) = true then (1 : UInt64) else 0)) hv (by simp; exact hs)
+        (by simp; exact hssz) (by omega) (by omega) (by rw [en, ei]; omega) rfl
+        (by -- left part unchanged
+          rw [en, ei, hsl, leftPart_append, leftPart_singleton_neg _ _ _ hglf, List.append_nil, ← HL,
+            slice_set_of_not_mem _ _ _ _ _ _ (Or.inr (by rw [eidx]; omega))])
+        (by -- right part grows by x at the front (reversed: at the end)
+          rw [en, ei, hsl, rightPart_append, rightPart_singleton_neg _ _ _ hglf,
+            show i.toNat + 1 - lo.toNat - nl.toNat = (i.toNat - lo.toNat - nl.toNat) + 1 by omega,
+            show hi.toNat - (i.toNat - lo.toNat - nl.toNat + 1) = (hi.toNat - 1 - (i.toNat - lo.toNat - nl.toNat)) by omega,
+            slice_cons, List.reverse_cons,
+            show hi.toNat - 1 - (i.toNat - lo.toNat - nl.toNat) + 1 = hi.toNat - (i.toNat - lo.toNat - nl.toNat) by omega,
+            slice_set_of_not_mem _ _ _ _ _ _ (Or.inl (by rw [eidx]; omega)), HR, at'_set, if_pos eidx, hg])
+      exact ⟨H.1, H.2.1, fun x hx => (H.2.2 x hx).trans (at'_set_ne _ _ _ _ _ (by rw [eidx]; omega))⟩
+  · rename_i h
+    have h : ¬ i.toNat < hi.toNat := h
+    have hi' : i.toNat = hi.toNat := by omega
+    dsimp only
+    rw [hi'] at HL HR
+    refine ⟨HL, ?_, fun _ _ => rfl⟩
+    rw [← HR]
+    congr 2; omega
+
+theorem stablePartition_spec (v s : A) (lo hi pivot : UInt64) (eq : Bool) hv hs hvsz hssz hlt :
+    (stablePartition v s lo hi pivot eq hv hs hvsz hssz hlt).1.2.1.slice lo.toNat (hi.toNat - lo.toNat) =
+      leftPart eq pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) ++ rightPart eq pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    (stablePartition v s lo hi pivot eq hv hs hvsz hssz hlt).1.1.toNat = (leftPart eq pivot (v.slice lo.toNat (hi.toNat - lo.toNat))).length ∧
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (stablePartition v s lo hi pivot eq hv hs hvsz hssz hlt).1.2.1.at' x = v.at' x := by
+  unfold stablePartition
+  have hlo : lo.toNat ≤ hi.toNat := by omega
+  dsimp only
+  -- the scan
+  have P := partScan_spec v lo hi pivot eq (hi.toNat - lo.toNat) s lo 0 hv hs hssz (by omega) hlo (by simp) rfl
+    (by simp [leftPart]) (by simp [rightPart])
+  generalize hP : partScan v s lo hi lo 0 pivot eq hv hs hssz (by omega) hlo (by simp) = R at P
+  rcases R with ⟨⟨S1, nl⟩, hS1s, _, hnl⟩
+  dsimp only at P hS1s hnl ⊢
+  obtain ⟨A, B, _⟩ := P
+  have hnl' : nl.toNat ≤ hi.toNat - lo.toNat := by simpa using hnl
+  have e : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
+  -- copy the left part back
+  have C1 := copyRange_slice lo (lo + nl) S1 v hvsz (by rw [hS1s, e]; omega) (by rw [e]; omega)
+  have C1f := copyRange_spec (lo + nl) S1 ((lo + nl).toNat - lo.toNat) lo v hvsz (by rw [hS1s, e]; omega) (by rw [e]; omega) rfl
+  generalize hV1 : copyRange lo (lo + nl) S1 v hvsz (by rw [hS1s, e]; omega) (by rw [e]; omega) = V1 at C1 C1f
+  rcases V1 with ⟨V1, hV1s⟩
+  dsimp only at C1 C1f ⊢
+  rw [e, Nat.add_sub_cancel_left] at C1
+  obtain ⟨_, C1f⟩ := C1f
+  -- copy the right part back, reversed
+  have ehi1 : (hi - 1).toNat = hi.toNat - 1 := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp; omega))
+  have e1 : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hlo)
+  have erest : (hi - lo - nl).toNat = hi.toNat - lo.toNat - nl.toNat := by
+    rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [e1]; omega)), e1]
+  have C2 := copyRev_slice S1 V1 (lo + nl) (hi - 1) (hi - lo - nl) (by rw [hV1s]; exact hvsz) (by rw [hV1s, e, erest]; omega)
+    (by rw [erest, ehi1]; omega) (by rw [hS1s, ehi1]; omega) (by simp)
+  have C2f := copyRev_spec S1 (lo + nl) (hi - 1) (hi - lo - nl) (hi - lo - nl).toNat 0 V1 (by rw [hV1s]; exact hvsz)
+    (by rw [hV1s, e, erest]; omega) (by rw [erest, ehi1]; omega) (by rw [hS1s, ehi1]; omega) (by simp) rfl
+  generalize hV2 : copyRev S1 V1 (lo + nl) (hi - 1) 0 (hi - lo - nl) (by rw [hV1s]; exact hvsz) (by rw [hV1s, e, erest]; omega)
+    (by rw [erest, ehi1]; omega) (by rw [hS1s, ehi1]; omega) (by simp) = V2 at C2 C2f
+  rcases V2 with ⟨V2, hV2s⟩
+  dsimp only at C2 C2f ⊢
+  obtain ⟨_, C2f⟩ := C2f
+  rw [e, erest, ehi1, show hi.toNat - 1 + 1 - (hi.toNat - lo.toNat - nl.toNat) = lo.toNat + nl.toNat by omega, B] at C2
+  have V2lo : V2.slice lo.toNat nl.toNat = V1.slice lo.toNat nl.toNat := by
+    apply slice_congr; intro t ht; exact C2f _ (Or.inl (by simp; omega))
+  refine ⟨?_, ?_, fun x hx => ?_⟩
+  · have hsplit : V2.slice lo.toNat (hi.toNat - lo.toNat) = V2.slice lo.toNat nl.toNat ++ V2.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat) := by
+      rw [← slice_add]; congr 1; omega
+    rw [hsplit, V2lo, C1, A, C2]
+  · rw [← A, length_slice]
+  · rw [C2f x (by rw [e, erest]; omega), C1f x (by rw [e]; omega)]
+
 end DriftSort

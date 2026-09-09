@@ -124,7 +124,7 @@ def partScan (v : @& A) (s : A) (lo hi i nl pivot : UInt64) (eq : Bool)
     (hnl : nl.toNat ≤ i.toNat - lo.toNat := by u64) :
     { p : A × UInt64 // p.1.size = s.size ∧ nl.toNat ≤ p.2.toNat ∧ p.2.toNat ≤ nl.toNat + (hi.toNat - i.toNat) } :=
   if h : i < hi then
-    have h : i.toNat < hi.toNat := h
+    have hlt : i.toNat < hi.toNat := UInt64.lt_iff_toNat_lt.mp h
     have hb := UInt64.toNat_lt hi
     let x := v.get i
     let gl := goesLeft eq pivot x
