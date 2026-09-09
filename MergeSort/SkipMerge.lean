@@ -10,26 +10,34 @@ verified sorts (it pays off for merges between long natural runs; see `PLAN.md`)
 namespace MergeSort.BottomUp
 open UInt64Array MergeSort.Fast
 
-/-- Copy `src[k, hi)` into `dst[k, hi)`. -/
-def copyRange (k hi : UInt64) (src dst : UInt64Array)
+/-- Copy `src[k, hi)` into `dst[k, hi)`: the reference loop (the model of `copyRange`). -/
+def copyRangeLoop (k hi : UInt64) (src dst : UInt64Array)
     (hsz : dst.size < 2 ^ 64 := by u64) (hs : hi.toNat ≤ src.size := by u64) (hd : hi.toNat ≤ dst.size := by u64) :
     { b : UInt64Array // b.size = dst.size } :=
   if h : k < hi then
     have h : k.toNat < hi.toNat := h
-    castSize (copyRange (k + 1) hi src (dst.set k (src.get k))) (by simp)
+    castSize (copyRangeLoop (k + 1) hi src (dst.set k (src.get k))) (by simp)
   else ⟨dst, rfl⟩
 termination_by hi.toNat - k.toNat
 decreasing_by u64
 
-theorem copyRange_spec (hi : UInt64) (src : UInt64Array) :
+/-- Copy `src[k, hi)` into `dst[k, hi)`. Logically the loop above; at runtime one exclusivity check and a
+    `memcpy` (the same trust as the `set` primitive: the C implements the model). -/
+@[extern c inline "({ lean_object* _d = #4; if (__builtin_expect(!lean_is_exclusive(_d), 0)) _d = lean_copy_float_array(_d); if (#2 > #1) __builtin_memcpy((uint64_t*)lean_sarray_cptr(_d) + #1, (const uint64_t*)lean_sarray_cptr(#3) + #1, (size_t)(#2 - #1) * 8); _d; })"]
+def copyRange (k hi : UInt64) (src : @& UInt64Array) (dst : UInt64Array)
+    (hsz : dst.size < 2 ^ 64 := by u64) (hs : hi.toNat ≤ src.size := by u64) (hd : hi.toNat ≤ dst.size := by u64) :
+    { b : UInt64Array // b.size = dst.size } :=
+  copyRangeLoop k hi src dst hsz hs hd
+
+theorem copyRangeLoop_spec (hi : UInt64) (src : UInt64Array) :
     ∀ (m : Nat) (k : UInt64) (dst : UInt64Array) hsz hs hd, m = hi.toNat - k.toNat →
-    (∀ x, k.toNat ≤ x → x < hi.toNat → (copyRange k hi src dst hsz hs hd).1.at' x = src.at' x) ∧
-    (∀ x, (x < k.toNat ∨ hi.toNat ≤ x) → (copyRange k hi src dst hsz hs hd).1.at' x = dst.at' x) := by
+    (∀ x, k.toNat ≤ x → x < hi.toNat → (copyRangeLoop k hi src dst hsz hs hd).1.at' x = src.at' x) ∧
+    (∀ x, (x < k.toNat ∨ hi.toNat ≤ x) → (copyRangeLoop k hi src dst hsz hs hd).1.at' x = dst.at' x) := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
   intro k dst hsz hs hd hm
-  rw [copyRange]
+  rw [copyRangeLoop]
   split
   · rename_i h
     have h : k.toNat < hi.toNat := h
@@ -45,6 +53,12 @@ theorem copyRange_spec (hi : UInt64) (src : UInt64Array) :
     rename_i h
     have : ¬ k.toNat < hi.toNat := h
     omega
+
+theorem copyRange_spec (hi : UInt64) (src : UInt64Array) :
+    ∀ (m : Nat) (k : UInt64) (dst : UInt64Array) hsz hs hd, m = hi.toNat - k.toNat →
+    (∀ x, k.toNat ≤ x → x < hi.toNat → (copyRange k hi src dst hsz hs hd).1.at' x = src.at' x) ∧
+    (∀ x, (x < k.toNat ∨ hi.toNat ≤ x) → (copyRange k hi src dst hsz hs hd).1.at' x = dst.at' x) :=
+  copyRangeLoop_spec hi src
 
 /-- Merging two sorted lists that are already in order is concatenation. -/
 theorem merge_eq_append (L R : List UInt64) (h : ∀ l ∈ L, ∀ r ∈ R, l ≤ r) :

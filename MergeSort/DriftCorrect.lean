@@ -376,15 +376,15 @@ theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
 /-! ## The stable partition -/
 
 /-- `copyRev`: `dst[k + j] = src[last - j]` for `j ∈ [j0, n)`, everything else unchanged. -/
-theorem copyRev_spec (src : A) (k last n : UInt64) :
+theorem copyRevLoop_spec (src : A) (k last n : UInt64) :
     ∀ (m : Nat) (j : UInt64) (dst : A) hdsz hk hl hls hj, m = n.toNat - j.toNat →
-    (∀ x, j.toNat ≤ x → x < n.toNat → (copyRev src dst k last j n hdsz hk hl hls hj).1.at' (k.toNat + x) = src.at' (last.toNat - x)) ∧
-    (∀ x, (x < k.toNat + j.toNat ∨ k.toNat + n.toNat ≤ x) → (copyRev src dst k last j n hdsz hk hl hls hj).1.at' x = dst.at' x) := by
+    (∀ x, j.toNat ≤ x → x < n.toNat → (copyRevLoop src dst k last j n hdsz hk hl hls hj).1.at' (k.toNat + x) = src.at' (last.toNat - x)) ∧
+    (∀ x, (x < k.toNat + j.toNat ∨ k.toNat + n.toNat ≤ x) → (copyRevLoop src dst k last j n hdsz hk hl hls hj).1.at' x = dst.at' x) := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
   intro j dst hdsz hk hl hls hj hm
-  rw [copyRev]
+  rw [copyRevLoop]
   split
   · rename_i h
     have h : j.toNat < n.toNat := h
@@ -407,6 +407,12 @@ theorem copyRev_spec (src : A) (k last n : UInt64) :
   · rename_i h
     have h : ¬ j.toNat < n.toNat := h
     exact ⟨fun x hx1 hx2 => by omega, fun _ _ => rfl⟩
+
+theorem copyRev_spec (src : A) (k last n : UInt64) :
+    ∀ (m : Nat) (j : UInt64) (dst : A) hdsz hk hl hls hj, m = n.toNat - j.toNat →
+    (∀ x, j.toNat ≤ x → x < n.toNat → (copyRev src dst k last j n hdsz hk hl hls hj).1.at' (k.toNat + x) = src.at' (last.toNat - x)) ∧
+    (∀ x, (x < k.toNat + j.toNat ∨ k.toNat + n.toNat ≤ x) → (copyRev src dst k last j n hdsz hk hl hls hj).1.at' x = dst.at' x) :=
+  copyRevLoop_spec src k last n
 
 /-- Reading a slice through `copyRev`: the reversed source slice. -/
 theorem copyRev_slice (src dst : A) (k last n : UInt64) hdsz hk hl hls hj :

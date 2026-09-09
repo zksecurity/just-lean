@@ -120,7 +120,7 @@ def mergeRuns (v s : A) (lo mid hi : UInt64)
     the destination is selected, then one store. Returns `s` and the final `nl`. -/
 def partScan (v : @& A) (s : A) (lo hi i nl pivot : UInt64) (eq : Bool)
     (hv : hi.toNat ≤ v.size := by u64) (hs : hi.toNat ≤ s.size := by u64) (hssz : s.size < 2 ^ 64 := by u64)
-    (hi1 : lo.toNat ≤ i.toNat := by u64) (hi2 : i.toNat ≤ hi.toNat := by u64)
+    (hi1 : lo.toNat ≤ i.toNat := by u64) (_hi2 : i.toNat ≤ hi.toNat := by u64)
     (hnl : nl.toNat ≤ i.toNat - lo.toNat := by u64) :
     { p : A × UInt64 // p.1.size = s.size ∧ nl.toNat ≤ p.2.toNat ∧ p.2.toNat ≤ nl.toNat + (hi.toNat - i.toNat) } :=
   if h : i < hi then
@@ -147,17 +147,17 @@ def partScan (v : @& A) (s : A) (lo hi i nl pivot : UInt64) (eq : Bool)
     have en : (nl + d).toNat = nl.toNat + d.toNat := toNat_add_of_lt _ _ (by omega)
     have ei : (i + 1).toNat = i.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
     let rec_ := partScan v (s.set dst x (by omega)) lo hi (i + 1) (nl + d) pivot eq (hv := hv) (hs := by simp; exact hs)
-      (hssz := by simp; exact hssz) (hi1 := by omega) (hi2 := by omega) (hnl := by omega)
+      (hssz := by simp; exact hssz) (hi1 := by omega) (_hi2 := by omega) (hnl := by omega)
     ⟨rec_.1, rec_.2.1.trans (size_set _ _ _ _), Nat.le_trans (by rw [en]; omega) rec_.2.2.1,
       Nat.le_trans rec_.2.2.2 (by rw [en, ei]; omega)⟩
   else ⟨(s, nl), rfl, by simp, by simp⟩
 termination_by hi.toNat - i.toNat
 decreasing_by all_goals u64
 
-/-- `dst[k + j] := src[last - j]` for `j ∈ [j0, n)` (the reversed copy-back of the right part). -/
-def copyRev (src : @& A) (dst : A) (k last j n : UInt64)
+/-- `dst[k + j] := src[last - j]` for `j ∈ [j0, n)` (the reversed copy-back of the right part): the reference loop. -/
+def copyRevLoop (src : @& A) (dst : A) (k last j n : UInt64)
     (hdsz : dst.size < 2 ^ 64 := by u64) (hk : k.toNat + n.toNat ≤ dst.size := by u64)
-    (hl : n.toNat ≤ last.toNat + 1 := by u64) (hls : last.toNat < src.size := by u64) (hj : j.toNat ≤ n.toNat := by u64) :
+    (hl : n.toNat ≤ last.toNat + 1 := by u64) (hls : last.toNat < src.size := by u64) (_hj : j.toNat ≤ n.toNat := by u64) :
     { b : A // b.size = dst.size } :=
   if h : j < n then
     have h : j.toNat < n.toNat := h
@@ -167,11 +167,20 @@ def copyRev (src : @& A) (dst : A) (k last j n : UInt64)
     have ej1 : (j + 1).toNat = j.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
     have hget : (last - j).toNat < src.size := by rw [elj]; omega
     have hset : (k + j).toNat < dst.size := by rw [ekj]; omega
-    castSize (copyRev src (dst.set (k + j) (src.get (last - j) hget) hset) k last (j + 1) n
-      (hdsz := by simp; exact hdsz) (hk := by simp; exact hk) (hl := hl) (hls := hls) (hj := by omega)) (by simp)
+    castSize (copyRevLoop src (dst.set (k + j) (src.get (last - j) hget) hset) k last (j + 1) n
+      (hdsz := by simp; exact hdsz) (hk := by simp; exact hk) (hl := hl) (hls := hls) (_hj := by omega)) (by simp)
   else ⟨dst, rfl⟩
 termination_by n.toNat - j.toNat
 decreasing_by u64
+
+/-- The reversed copy: logically `copyRevLoop`, at runtime one exclusivity check and a plain C loop that the
+    compiler vectorises. -/
+@[extern c inline "({ lean_object* _d = #2; if (__builtin_expect(!lean_is_exclusive(_d), 0)) _d = lean_copy_float_array(_d); uint64_t* _dp = (uint64_t*)lean_sarray_cptr(_d); const uint64_t* _sp = (const uint64_t*)lean_sarray_cptr(#1); for (uint64_t _i = #5; _i < #6; _i++) _dp[#3 + _i] = _sp[#4 - _i]; _d; })"]
+def copyRev (src : @& A) (dst : A) (k last j n : UInt64)
+    (hdsz : dst.size < 2 ^ 64 := by u64) (hk : k.toNat + n.toNat ≤ dst.size := by u64)
+    (hl : n.toNat ≤ last.toNat + 1 := by u64) (hls : last.toNat < src.size := by u64) (_hj : j.toNat ≤ n.toNat := by u64) :
+    { b : A // b.size = dst.size } :=
+  copyRevLoop src dst k last j n hdsz hk hl hls _hj
 
 /-- `stable_partition` of `v[lo, hi)` by `pivot`: left part (`goesLeft`) then right part, both in the
     original order; returns the size of the left part. -/
