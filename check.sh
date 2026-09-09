@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 lake build
-lake build msbench verifyall
+lake build msbench verifyall naturalruns
 ./.lake/build/bin/verifyall
 cat > /tmp/mergesort_axioms.lean <<'LEAN'
 import MergeSort
