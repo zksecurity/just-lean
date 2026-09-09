@@ -47,7 +47,7 @@ def zeros (n : @& Nat) : UInt64Array := ⟨Array.replicate n 0⟩
 @[simp] theorem size_mk (d : Array UInt64) : (mk d).size = d.size := rfl
 
 /-- Two writes with one exclusivity check. Logically two `set`s; the C implements exactly that. -/
-@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a); _p[#2] = #3; _p[#4] = #5; _a; })"]
+@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a); _p[#2] = #3; _p[#4] = #5; _a; })", reducible]
 def set2 (a : UInt64Array) (i v j w : UInt64) (hi : i.toNat < a.size) (hj : j.toNat < a.size) : UInt64Array :=
   (a.set i v hi).set j w (by simpa using hj)
 

@@ -32,7 +32,22 @@ with the branchless select in the main text. The top-down version gets one sente
 exists in the repo and is 30% slower") and no theorem pointer; `Fast.lean`/`Correct.lean` stay in the repo
 as a side project. Bidirectional merge, cache blocks and adaptivity are Part 3 material.
 
-## Part 3 — Advanced: toward `Vec::sort`  (`MergeBack.lean`, `Bidi.lean`, `BidiSort.lean`, `Blocked.lean`, `Adaptive.lean`, `SkipMerge.lean`, `FindRun.lean`, prototype `NaturalRuns.lean`)
+## Part 3 — Advanced: the verified driftsort  (`DriftSort.lean`, `DriftCorrect.lean`, `DriftCorrectLoop.lean`; building blocks `MergeBack.lean`, `Bidi.lean`, `BidiSort.lean`, `Blocked.lean`, `Adaptive.lean`, `SkipMerge.lean`, `FindRun.lean`, `Net4.lean`)
+Chapter outline (draft after the night of Sept 9/10):
+0. What `Vec::sort` does: a reading of `drift.rs`/`quicksort.rs`/`smallsort.rs`/`merge.rs` with the measured
+   input-shape study (why run detection, why a stable quicksort, why sorting networks).
+1. The port, kernel by kernel, each shown as Lean code next to the Rust it mirrors, with its spec: the small
+   sort (`sort4` network + insertion + bidirectional merge), the stable partition (scan into scratch, copy back),
+   the physical merge, run detection, the powersort run stack with lazy logical runs, the quicksort with the
+   ancestor-pivot rule and its depth-limit fallback.
+2. The proofs, in the same order: slices as lists, frame clauses, `RunsOK` as the one invariant of the run
+   stack, `QuickSpec` making the loop proof generic over the range sorter, the quicksort's precondition
+   ("all elements ≥ the left ancestor pivot") and why the equal-element partition is then a constant run.
+3. Making the verified code fast without touching the proofs: proof-carrying primitives whose logical body is
+   the verified loop (`memcpy` copies, batched stores), measured step by step (41 → 37 ms; lab port 28; Rust 19).
+4. Honest accounting: what is trusted (the C of the primitives, the runtime), what the deviations from Rust
+   are, and the remaining 1.3× (per-store exclusivity checks in the element loops).
+
 1. How driftsort works (run detection, small-sort networks, lazy powersort merges, bidirectional merge).
 2. The bidirectional branchless merge in Lean, verified: the reverse-merge lemma `drop_merge_eq`,
    `mergeBidi_spec`, `mergeKernel`, `sort2` = 30–34 ms vs driftsort 19 (1M).
