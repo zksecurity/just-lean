@@ -52,3 +52,12 @@ Simple 105 · UInt64Array 88 · Slice 92 · FastMerge 43 · Fast 70 · Correct 4
 BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 ·
 SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 246 (6.4 s) ·
 Adaptive 420 (4 s) · Export 10. Total 2939 lines, ~55 s clean build.
+
+## Scaling (ms, random u64, same machine, one run each; 10M Lean varies 330–430 across runs)
+| n | Lean `sortBlocked` (verified) | Rust same algorithm | Rust plain merge sort | Rust driftsort |
+|---|---|---|---|---|
+| 1k | 0.017 | 0.019 | 0.043 | 0.018 |
+| 10k | 0.21 | 0.20 | 0.98 | 0.14 |
+| 100k | 2.4 | 2.4 | 6.9 | 1.6 |
+| 1M | 29.8 | 28.3 | 82.9 | 18.8 |
+| 10M | 330–430 | 367 | 943 | 270 |
