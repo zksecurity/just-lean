@@ -418,7 +418,9 @@ def stackSum (st : Stack) : Nat := (st.map (fun e => e.1.len.toNat)).sum
       (by omega) (by omega) hvsz hssz hsum
     have hv2 : v2.size = v.size := hv2
     have hs2 : s2.size = s.size := hs2
-    if prevRun'.sorted then ⟨(v2, s2), hv2, hs2⟩
+    -- (the length check always holds: the bottom of the stack is the empty dummy run; it is checked
+    -- rather than proved as an invariant)
+    if prevRun'.sorted ∧ prevRun'.len = len then ⟨(v2, s2), hv2, hs2⟩
     else
       have el : (lo + len).toNat = lo.toNat + len.toNat := toNat_add_of_lt _ _ (by omega)
       castVS (quick v2 s2 lo (lo + len) (by rw [hv2, el]; exact hv) (by rw [hs2, el]; exact hs) (by rw [hv2]; exact hvsz)
