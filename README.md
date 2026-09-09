@@ -20,6 +20,26 @@ Everything here is total (no `partial`), has no `sorry`, and the correctness the
 | `MergeSort/Export.lean`, `ffi/` | `@[export mergesort_sort_u64]` and a C program that sorts a raw buffer through the verified sort. |
 | `Bench.lean`, `VerifyAll.lean`, `Experiments.lean`, `DoBench.lean` | benchmark, exact cross-check (37 sizes × 3 seeds × 4 input shapes), unverified experiments, `do`-notation comparison. |
 
+## How the proofs are organised
+
+- **Specs are lists.** `Slice.lean` turns a range of a `UInt64Array` into a list (`slice a off len`), with
+  lemmas for splitting (`slice_add`, `slice_cons`, `slice_succ`), for writes (`slice_set_of_not_mem`,
+  `at'_set`), and `slice_eq_toList`. Every loop gets a theorem of the shape *result slice = some list
+  function of input slices* plus a *frame* clause (positions outside the written range are unchanged).
+- **Loops are proved by strong induction on their measure**, unfolding one step (`rw [loop]`, `split`),
+  applying the induction hypothesis to the updated array, and rewriting slices. The `if` hypotheses are
+  restated in `Nat` form; `omega` closes all index arithmetic after `simp only` with the `UInt64.toNat_*`
+  lemmas (`u64`/`u64g`).
+- **Reuse.** `mergeLoop_spec` (front merge) is shared by the top-down and bottom-up sorts; the pass spec
+  is parametric in the run length, so `sort16` (insertion runs), `sort2` (bidirectional kernel) and
+  `sortBlocked` (blocked pass order) only add what is new; `widthLoop_spec` is shared by all of them.
+- **Two routes to the final theorem.** Top-down: `sort_toList` shows the array sort computes *exactly*
+  the list `mergeSort` of Part 1, so Part 1's theorems transfer. Bottom-up: a small list theory of a pass
+  (`mergeRuns`, `ChunkSorted`) gives sortedness and permutation directly.
+- **Bidirectional merge.** `MergeBack.lean` proves that merging from the back is the reversed merge of the
+  reversed runs (`merge_reverse_eq_reverse_mergeBack`, `drop_merge_eq`); `Bidi.lean` proves the
+  interleaved loop writes `take w` of the merge at the front and `drop w` at the back.
+
 ## Numbers (this machine, 1M / 10M random `u64`, ms)
 
 | implementation | 1M | 10M |
@@ -39,6 +59,16 @@ Everything here is total (no `partial`), has no `sorry`, and the correctness the
 | Lean `BottomUp.sortAdaptive` on already sorted input | 0.6 | 5 |
 | Rust `Vec::sort` on already sorted input | 0.4 | 5 |
 | Lean, same bottom-up loop written in `do` notation | 1010 | 13072 |
+
+Scaling (`sortdemo`, verified `sortAdaptive2`, vs `Vec::sort`), ms:
+
+| n | Lean | driftsort |
+|---|---|---|
+| 1 k | 0.05 | 0.017 |
+| 10 k | 0.20 | 0.14 |
+| 100 k | 2.4 | 1.7 |
+| 1 M | 30 | 19 |
+| 10 M | 364 | 271 |
 
 ## What made the difference (in order of discovery)
 

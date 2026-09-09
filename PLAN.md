@@ -44,3 +44,9 @@ Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correc
 ## Numbers to quote (1M / 10M `u64`, ms)
 `sortBlocked` 30–35 / 368 · `sort2` 30–34 / 450–500 · `sort16` 46 / 568 · `BottomUp.sort` 48 / 600 · `Fast.sort` 68 / 780 ·
 Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-notation loop 1010 / 13072.
+
+## Files (lines / clean-build seconds)
+Simple 105 · UInt64Array 88 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 ·
+BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 ·
+SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 246 (6.4 s) ·
+Adaptive 274 (2.8 s) · Export 10. Total 2791 lines, ~52 s clean build.
