@@ -116,7 +116,8 @@ def mergeRuns (v s : A) (lo mid hi : UInt64)
 @[inline] def goesLeft (eq : Bool) (pivot x : UInt64) : Bool := if eq then decide (x ≤ pivot) else decide (x < pivot)
 
 /-- The scan: `v[i, hi)` still to do, `nl` elements already on the left (`s[lo, lo+nl)`), the right
-    ones at the back of `s[lo, hi)` in reverse order. Returns `s` and the final `nl`. -/
+    ones at the back of `s[lo, hi)` in reverse order (the `r`-th one at `hi - 1 - r`). Branchless:
+    the destination is selected, then one store. Returns `s` and the final `nl`. -/
 def partScan (v : @& A) (s : A) (lo hi i nl pivot : UInt64) (eq : Bool)
     (hv : hi.toNat ≤ v.size := by u64) (hs : hi.toNat ≤ s.size := by u64) (hssz : s.size < 2 ^ 64 := by u64)
     (hi1 : lo.toNat ≤ i.toNat := by u64) (hi2 : i.toNat ≤ hi.toNat := by u64)
@@ -126,17 +127,29 @@ def partScan (v : @& A) (s : A) (lo hi i nl pivot : UInt64) (eq : Bool)
     have h : i.toNat < hi.toNat := h
     have hb := UInt64.toNat_lt hi
     let x := v.get i
-    if goesLeft eq pivot x then
-      have e : (lo + nl).toNat = lo.toNat + nl.toNat := by u64
-      let ⟨p, hp⟩ := partScan v (s.set (lo + nl) x) lo hi (i + 1) (nl + 1) pivot eq (hs := by simp; exact hs)
-        (hssz := by simp; exact hssz) (hi2 := by u64) (hnl := by u64)
-      ⟨p, by simpa using hp.1, by u64, by u64⟩
-    else
-      -- right element number r = (i - lo) - nl goes to s[hi - 1 - r]
-      have e : (hi - 1 - ((i - lo) - nl)).toNat = hi.toNat - 1 - ((i.toNat - lo.toNat) - nl.toNat) := by u64
-      let ⟨p, hp⟩ := partScan v (s.set (hi - 1 - ((i - lo) - nl)) x) lo hi (i + 1) nl pivot eq (hs := by simp; exact hs)
-        (hssz := by simp; exact hssz) (hi2 := by u64) (hnl := by u64)
-      ⟨p, by simpa using hp.1, by u64, by u64⟩
+    let gl := goesLeft eq pivot x
+    let r := i - lo - nl
+    have er : r.toNat = i.toNat - lo.toNat - nl.toNat := by
+      show (i - lo - nl).toNat = _
+      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hi1)]; omega)),
+        UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hi1)]
+    have e1 : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
+    have e0 : (hi - 1).toNat = hi.toNat - 1 := by
+      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp; omega))]; simp
+    have e2 : (hi - 1 - r).toNat = (hi - 1).toNat - r.toNat :=
+      UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [e0]; omega))
+    let dst := if gl then lo + nl else hi - 1 - r
+    have hdst : dst.toNat < hi.toNat := by
+      show (if gl then lo + nl else hi - 1 - r).toNat < _
+      split <;> omega
+    let d : UInt64 := if gl then 1 else 0
+    have hd : d.toNat ≤ 1 := by show (if gl then (1 : UInt64) else 0).toNat ≤ 1; split <;> simp
+    have en : (nl + d).toNat = nl.toNat + d.toNat := toNat_add_of_lt _ _ (by omega)
+    have ei : (i + 1).toNat = i.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
+    let rec_ := partScan v (s.set dst x (by omega)) lo hi (i + 1) (nl + d) pivot eq (hv := hv) (hs := by simp; exact hs)
+      (hssz := by simp; exact hssz) (hi1 := by omega) (hi2 := by omega) (hnl := by omega)
+    ⟨rec_.1, rec_.2.1.trans (size_set _ _ _ _), Nat.le_trans (by rw [en]; omega) rec_.2.2.1,
+      Nat.le_trans rec_.2.2.2 (by rw [en, ei]; omega)⟩
   else ⟨(s, nl), rfl, by simp, by simp⟩
 termination_by hi.toNat - i.toNat
 decreasing_by all_goals u64
@@ -262,9 +275,8 @@ def minSqrtRunLen : UInt64 := 64
 abbrev Quick := (v s : A) → (lo hi : UInt64) → hi.toNat ≤ v.size → hi.toNat ≤ s.size →
     v.size < 2 ^ 64 → s.size < 2 ^ 64 → lo.toNat ≤ hi.toNat → VS v s
 
-/-- `create_run` on `v[lo, hi)` (`lo < hi`): a sorted natural run of length ≥ `minGood`, else in eager
-    mode a small-sorted run of ≤ 32, else an unsorted run of ≤ `minGood`. The run length is ≥ 1. -/
-def createRun (v s : A) (lo hi minGood : UInt64) (eager : Bool)
+/-- No natural run: in eager mode a small-sorted run of ≤ 32, else an unsorted run of ≤ `minGood`. -/
+def createRunRest (v s : A) (lo hi minGood : UInt64) (eager : Bool)
     (hv : hi.toNat ≤ v.size) (hs : hi.toNat ≤ s.size) (hvsz : v.size < 2 ^ 64) (hssz : s.size < 2 ^ 64)
     (hlo : lo.toNat < hi.toNat) (hmg : 0 < minGood.toNat) :
     { r : Run × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧
@@ -272,34 +284,45 @@ def createRun (v s : A) (lo hi minGood : UInt64) (eager : Bool)
   have hbnd := UInt64.toNat_lt hi
   let len := hi - lo
   have hlen : len.toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (by u64)
-  let natural : Option { r : UInt64 × A // r.2.size = v.size ∧ 0 < r.1.toNat ∧ lo.toNat + r.1.toNat ≤ hi.toNat } :=
-    if minGood ≤ len then
-      let ⟨(e, v1), he1, he2, hv1⟩ := findRun lo hi v hvsz hv hlo
-      have ee : (e - lo).toNat = e.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp at he1; omega))
-      if h : minGood ≤ e - lo then
-        have h := UInt64.le_iff_toNat_le.mp h
-        some ⟨(e - lo, v1), hv1, by rw [ee]; simp at he1 he2; omega, by rw [ee]; simp at he1 he2; omega⟩
-      else none
-    else none
-  match natural with
-  | some ⟨(rl, v1), hv1, h0, hle⟩ => ⟨(mkSorted rl, v1, s), hv1, rfl, h0, hle⟩
-  | none =>
-    if eager then
-      let m := if smallSortThreshold ≤ len then smallSortThreshold else len
-      have hm : 0 < m.toNat ∧ lo.toNat + m.toNat ≤ hi.toNat := by
-        show 0 < (if smallSortThreshold ≤ len then smallSortThreshold else len).toNat ∧
-          lo.toNat + (if smallSortThreshold ≤ len then smallSortThreshold else len).toNat ≤ hi.toNat
-        split <;> (simp only [smallSortThreshold, UInt64.le_iff_toNat_le, UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at *; omega)
-      have em : (lo + m).toNat = lo.toNat + m.toNat := toNat_add_of_lt _ _ (by omega)
-      let ⟨(v1, s1), hv1, hs1⟩ := smallSort v s lo (lo + m) (by rw [em]; omega) (by rw [em]; omega) hvsz hssz (by rw [em]; omega)
-      ⟨(mkSorted m, v1, s1), hv1, hs1, hm.1, hm.2⟩
+  if eager then
+    let m := if smallSortThreshold ≤ len then smallSortThreshold else len
+    have hm : 0 < m.toNat ∧ lo.toNat + m.toNat ≤ hi.toNat := by
+      show 0 < (if smallSortThreshold ≤ len then smallSortThreshold else len).toNat ∧
+        lo.toNat + (if smallSortThreshold ≤ len then smallSortThreshold else len).toNat ≤ hi.toNat
+      split <;> (simp only [smallSortThreshold, UInt64.le_iff_toNat_le, UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at *; omega)
+    have em : (lo + m).toNat = lo.toNat + m.toNat := toNat_add_of_lt _ _ (by omega)
+    let ⟨(v1, s1), hv1, hs1⟩ := smallSort v s lo (lo + m) (by rw [em]; omega) (by rw [em]; omega) hvsz hssz (by rw [em]; omega)
+    ⟨(mkSorted m, v1, s1), hv1, hs1, hm.1, hm.2⟩
+  else
+    let m := if minGood ≤ len then minGood else len
+    have hm : 0 < m.toNat ∧ lo.toNat + m.toNat ≤ hi.toNat := by
+      show 0 < (if minGood ≤ len then minGood else len).toNat ∧
+        lo.toNat + (if minGood ≤ len then minGood else len).toNat ≤ hi.toNat
+      split <;> (simp only [UInt64.le_iff_toNat_le] at *; omega)
+    ⟨(mkUnsorted m, v, s), rfl, rfl, hm.1, hm.2⟩
+
+/-- `create_run` on `v[lo, hi)` (`lo < hi`): a sorted natural run of length ≥ `minGood` (a descending
+    one reversed in place), else `createRunRest`. The run length is ≥ 1. -/
+def createRun (v s : A) (lo hi minGood : UInt64) (eager : Bool)
+    (hv : hi.toNat ≤ v.size) (hs : hi.toNat ≤ s.size) (hvsz : v.size < 2 ^ 64) (hssz : s.size < 2 ^ 64)
+    (hlo : lo.toNat < hi.toNat) (hmg : 0 < minGood.toNat) :
+    { r : Run × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧
+        0 < r.1.len.toNat ∧ lo.toNat + r.1.len.toNat ≤ hi.toNat } :=
+  let len := hi - lo
+  have hlen : len.toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (by u64)
+  if minGood ≤ len then
+    let ⟨(e, v1), he1, he2, hv1⟩ := findRun lo hi v hvsz hv hlo
+    have he1 : lo.toNat < e.toNat := he1
+    have he2 : e.toNat ≤ hi.toNat := he2
+    have hv1 : v1.size = v.size := hv1
+    have ee : (e - lo).toNat = e.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by omega))
+    if h : minGood ≤ e - lo then
+      have h := UInt64.le_iff_toNat_le.mp h
+      ⟨(mkSorted (e - lo), v1, s), hv1, rfl, by rw [ee]; omega, by rw [ee]; omega⟩
     else
-      let m := if minGood ≤ len then minGood else len
-      have hm : 0 < m.toNat ∧ lo.toNat + m.toNat ≤ hi.toNat := by
-        show 0 < (if minGood ≤ len then minGood else len).toNat ∧
-          lo.toNat + (if minGood ≤ len then minGood else len).toNat ≤ hi.toNat
-        split <;> (simp only [UInt64.le_iff_toNat_le] at *; omega)
-      ⟨(mkUnsorted m, v, s), rfl, rfl, hm.1, hm.2⟩
+      let ⟨r, hr1, hr2, hr3, hr4⟩ := createRunRest v1 s lo hi minGood eager (by rw [hv1]; exact hv) hs (by rw [hv1]; exact hvsz) hssz hlo hmg
+      ⟨r, hr1.trans hv1, hr2, hr3, hr4⟩
+  else createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg
 
 /-- `logical_merge` of the adjacent runs `v[lo, mid)` (sorted iff `lsorted`) and `v[mid, hi)`:
     physical when one side is sorted or the pair no longer fits the scratch buffer. Returns the

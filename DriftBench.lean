@@ -150,6 +150,38 @@ def phases (n : Nat) : IO Unit := do
       else (v, s)
   twice "  stage 1+2+3: + bidirectional merge     " (fun v s => stage123 0 v s (n / 32 + 1))
   twice "stableQuicksort on the whole array     " (fun v s => Drift.stableQuicksort v s 0 nn nn)
+  -- the bounds-safe kernels
+  let safeBlocks (v s : UInt64Array) : UInt64Array × UInt64Array :=
+    if h : v.size = n ∧ s.size = n ∧ n < 2 ^ 62 then
+      let rec go (lo : UInt64) (v s : UInt64Array) (hv : v.size = n) (hs : s.size = n) (hn : n < 2 ^ 62) (fuel : Nat) : UInt64Array × UInt64Array :=
+        match fuel with
+        | 0 => (v, s)
+        | f + 1 =>
+          if hlo : lo.toNat + 32 ≤ n ∧ (lo + 32).toNat = lo.toNat + 32 then
+            let r := DriftSort.smallSort v s lo (lo + 32) (by omega) (by omega) (by omega) (by omega) (by omega)
+            go (lo + 32) r.1.1 r.1.2 (r.2.1.trans hv) (r.2.2.trans hs) hn f
+          else (v, s)
+      go 0 v s h.1 h.2.1 h.2.2 (n / 32 + 1)
+    else (v, s)
+  twice "SAFE smallSort on every block of 32     " safeBlocks
+  let safePart (v s : UInt64Array) : UInt64Array × UInt64Array :=
+    if h : v.size = n ∧ s.size = n ∧ nn.toNat = n ∧ 0 < n ∧ n < 2 ^ 62 then
+      let r := DriftSort.stablePartition v s 0 nn (v.get (nn / 2) (by simp; omega)) false (by omega) (by omega) (by omega) (by omega) (by simp; omega)
+      (r.1.2.1, r.1.2.2)
+    else (v, s)
+  twice "SAFE one stable partition               " safePart
+  let safeMerge (v s : UInt64Array) : UInt64Array × UInt64Array :=
+    if h : v.size = n ∧ s.size = n ∧ nn.toNat = n ∧ n < 2 ^ 62 then
+      let r := DriftSort.mergeRuns v s 0 (nn / 2) nn (by omega) (by omega) (by omega) (by omega) (by simp) (by simp; omega)
+      (r.1.1, r.1.2)
+    else (v, s)
+  twice "SAFE mergeRuns of two halves            " safeMerge
+  let safeQuick (v s : UInt64Array) : UInt64Array × UInt64Array :=
+    if h : v.size = n ∧ s.size = n ∧ nn.toNat = n ∧ n < 2 ^ 62 then
+      let r := DriftSort.stableQuicksort v s 0 nn nn (by omega) (by omega) (by omega) (by omega) (by simp)
+      (r.1.1, r.1.2)
+    else (v, s)
+  twice "SAFE stableQuicksort on the whole array " safeQuick
   twice "Drift.sort entry (whole sort)          " (fun v _ => (Drift.sort v, UInt64Array.zeros 1))
 
 @[noinline] def pairId (v s : UInt64Array) : UInt64Array × UInt64Array := (v, s)
