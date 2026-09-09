@@ -44,6 +44,10 @@ Peak RSS 10M: 167 MB (Rust 119 MB). Clean build of all proofs: 52 s.
   31 vs 30 ms at 1M, 2.44 vs 2.37 at 100k; 10M inside the run-to-run noise (330–440). The merge passes below
   width 16 are already cache-resident inside a block, so the insertion sort only trades passes for branches.
 - Sorting networks (sort8) for run creation: +5% at 10M, nothing at 1M (Experiments.lean).
+- Stable quicksort prototype (`Experiments.lean`, branchless out-of-place partition, `experiments N swaps1`) on the
+  1%-swaps input: 36.7 ms vs 37 for the blocked merge sort (driftsort 14), random 39 vs 32. So a quicksort
+  engine alone does not explain driftsort's win on nearly sorted data; it is the combination with its
+  small-sort networks and pivot selection (`PLAN.md`, step 4/5).
 - `perf stat` is unavailable on this machine (`perf_event_paranoid = 4`), so the driftsort gap was attributed
   by porting the exact Lean algorithm to Rust (identical timings) rather than by hardware counters.
 

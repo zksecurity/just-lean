@@ -82,7 +82,9 @@ built in this order, each step verified before the next:
    `mergeLoop`/`copyRange` specs (out-of-place, no in-place swaps): the spec is
    `dst.slice = filter (< p) ++ [p] ++ filter (≥ p)` of the source slice (stability = filter keeps order),
    which is a list lemma, plus the same frame clauses. Estimated 400–500 lines. The bottom-up `sortBlocked`
-   on the run is a correct stand-in first (spec exists) and keeps random inputs at 30 ms.
+   on the run is a correct stand-in first (spec exists) and keeps random inputs at 30 ms. Measured: our
+   unverified stable-quicksort prototype does *not* win on the 1%-swaps input (36.7 vs 37 ms; driftsort
+   14), so step 4 only pays together with step 5 and driftsort's pivot selection.
 5. **Small sorts** (`lab/driftsort-src/smallsort.rs`, the stable variant used by driftsort for `u64`,
    `small_sort_general_with_scratch`, threshold 32): sort both halves of a ≤32-element slice with
    `sort8_stable` (a 19-comparator network built from two `sort4_stable` + a bidirectional 4+4 merge,

@@ -244,9 +244,40 @@ def timeIt (label : String) (ref : Array UInt64) (f : Unit → UInt64Array) : IO
   let t1 ← IO.monoNanosNow
   IO.println s!"{label}: {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "ok" else "WRONG"}]"
 
+def shapeOf (shape : String) (n : Nat) (xs0 : Array UInt64) : Array UInt64 :=
+  if shape == "runs8" then
+    let r := max 1 (n / 8)
+    Id.run do
+      let mut out := Array.mkEmpty n
+      let mut i := 0
+      while i < n do
+        out := out ++ (xs0.extract i (min n (i + r))).qsort (· < ·)
+        i := i + r
+      return out
+  else if shape == "swaps1" then Id.run do
+    let mut v := xs0.qsort (· < ·)
+    let mut s : UInt64 := 7
+    for _ in [0:n / 100] do
+      s := s ^^^ (s >>> 12); s := s ^^^ (s <<< 25); s := s ^^^ (s >>> 27)
+      let i := ((s * 0x2545F4914F6CDD1D) % n.toUInt64).toNat
+      s := s ^^^ (s >>> 12); s := s ^^^ (s <<< 25); s := s ^^^ (s >>> 27)
+      let j := ((s * 0x2545F4914F6CDD1D) % n.toUInt64).toNat
+      v := v.swapIfInBounds i j
+    return v
+  else if shape == "sawtooth" then Id.run do
+    let mut out := Array.mkEmpty n
+    let mut i := 0
+    while i < n do
+      out := out ++ (xs0.extract i (min n (i + 1000))).qsort (· < ·)
+      i := i + 1000
+    return out
+  else if shape == "reversed" then xs0.qsort (· < ·) |>.reverse
+  else xs0
+
 def main (args : List String) : IO Unit := do
   let n := (args.head? >>= String.toNat?).getD 1000000
-  let xs := gen n 42
+  let shape := (args.drop 1).headD "random"
+  let xs := shapeOf shape n (gen n 42)
   let ref := xs.qsort (· < ·)
   IO.println s!"n = {n}"
   timeIt "verified BottomUp.sort            " ref (fun _ => MergeSort.BottomUp.sort (UInt64Array.ofArray xs) (by sorry))
