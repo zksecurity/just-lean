@@ -24,9 +24,11 @@ partial def descEnd (n i : UInt64) (a : UInt64Array) (hsz : a.size < 2 ^ 64) (hn
     if a.get i < a.get (i - 1) then descEnd n (i + 1) a hsz hn (by u64) else i
   else i
 
-/-- Collect run starts into `runs` (each run sorted in place); returns `(runs ++ [n], a)`. -/
-partial def collectRuns (minRun n lo : UInt64) (a : UInt64Array) (runs : Array UInt64)
-    (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) : Array UInt64 × UInt64Array :=
+/-- Collect run starts into `runs` (each run sorted in place); returns `(runs ++ [n], a, d)`.
+    `useBlocks`: extend short runs with the verified cache-blocked bottom-up sort (`blockPasses`) on
+    `[lo, lo + minRun)` instead of insertion sort; needs the scratch buffer `d`. -/
+partial def collectRunsB (useBlocks : Bool) (minRun n lo : UInt64) (a d : UInt64Array) (runs : Array UInt64)
+    (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) : Array UInt64 × UInt64Array × UInt64Array :=
   if h : lo < n then
     have h1 : lo.toNat < n.toNat := h
     have h : lo < n ∧ a.size < 2 ^ 64 ∧ n.toNat ≤ a.size := ⟨h, hsz, hn⟩
@@ -41,16 +43,23 @@ partial def collectRuns (minRun n lo : UInt64) (a : UInt64Array) (runs : Array U
           if h2 : hi.toNat ≤ a.size ∧ lo.toNat ≤ hi.toNat then (hi, (reverseRange lo hi a h.2.1 h2.1 h2.2).1) else (hi, a)
         else (ascEnd n (lo + 2) a hsz hn (by u64), a)
       -- extend short runs
-      let (hi, a) :=
+      let (hi, a, d) :=
         if hi - lo < minRun then
           let hi' := if lo + minRun ≤ n then lo + minRun else n
-          if h3 : a.size < 2 ^ 64 ∧ hi'.toNat ≤ a.size ∧ lo.toNat ≤ hi.toNat then
-            (hi', (insertionSortRange lo hi' hi a h3.1 h3.2.1 h3.2.2).1)
-          else (hi, a)
-        else (hi, a)
-      if h5 : a.size < 2 ^ 64 ∧ n.toNat ≤ a.size then collectRuns minRun n hi a runs h5.1 h5.2 else (runs.push n, a)
-    else (runs.push n, a)
-  else (runs.push n, a)
+          if useBlocks then
+            if h3 : hi'.toNat < 2 ^ 62 ∧ hi'.toNat ≤ a.size ∧ hi'.toNat ≤ d.size ∧ a.size < 2 ^ 64 ∧ d.size < 2 ^ 64
+                ∧ minRun.toNat < 2 ^ 61 ∧ lo.toNat ≤ hi'.toNat ∧ hi'.toNat - lo.toNat ≤ minRun.toNat then
+              let r := blockPasses 1 minRun lo hi' a d h3.1 h3.2.1 h3.2.2.1 h3.2.2.2.1 h3.2.2.2.2.1 (by decide) h3.2.2.2.2.2.1
+                h3.2.2.2.2.2.2.1 h3.2.2.2.2.2.2.2
+              (hi', r.1.1, r.1.2)
+            else (hi, a, d)
+          else if h3 : a.size < 2 ^ 64 ∧ hi'.toNat ≤ a.size ∧ lo.toNat ≤ hi.toNat then
+            (hi', (insertionSortRange lo hi' hi a h3.1 h3.2.1 h3.2.2).1, d)
+          else (hi, a, d)
+        else (hi, a, d)
+      if h5 : a.size < 2 ^ 64 ∧ n.toNat ≤ a.size then collectRunsB useBlocks minRun n hi a d runs h5.1 h5.2 else (runs.push n, a, d)
+    else (runs.push n, a, d)
+  else (runs.push n, a, d)
 
 /-- Count natural runs (ascending or strictly descending) without writing; read-only scan. -/
 partial def countRuns (n lo : UInt64) (a : @& UInt64Array) (acc limit : UInt64)
@@ -63,6 +72,11 @@ partial def countRuns (n lo : UInt64) (a : @& UInt64Array) (acc limit : UInt64)
       countRuns n hi a (acc + 1) limit hsz hn
     else acc + 1
   else acc
+
+def collectRuns (minRun n lo : UInt64) (a : UInt64Array) (runs : Array UInt64)
+    (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) : Array UInt64 × UInt64Array :=
+  let (r, a, _) := collectRunsB false minRun n lo a (zeros 0) runs hsz hn
+  (r, a)
 
 /-- Copy `[lo, hi)` from `src` to `dst`. -/
 def copyRange (lo hi : UInt64) (src dst : UInt64Array) : UInt64Array :=
@@ -113,6 +127,15 @@ def sortNatural (minRun : UInt64) (xs : UInt64Array) : UInt64Array :=
     have hn : n.toNat ≤ xs.size := by simp [n]; omega
     let (runs, a) := collectRuns minRun n 0 xs (Array.mkEmpty 1024) (by omega) hn
     mergeAll runs a (zeros xs.size)
+  else xs
+
+/-- Natural runs, short runs extended to `minRun` with the verified cache-blocked sort. -/
+def sortNaturalB (minRun : UInt64) (xs : UInt64Array) : UInt64Array :=
+  let n := xs.size.toUInt64
+  if h : xs.size < 2 ^ 62 then
+    have hn : n.toNat ≤ xs.size := by simp [n]; omega
+    let (runs, a, d) := collectRunsB true minRun n 0 xs (zeros xs.size) (Array.mkEmpty 1024) (by omega) hn
+    mergeAll runs a d
   else xs
 
 /-- Hybrid: count natural runs first; unstructured input (average run < `minRun`) goes to the verified
@@ -187,6 +210,11 @@ def main (args : List String) : IO Unit := do
         let r ← IO.lazyPure (fun _ => NR.sortHybrid minRun us)
         let t1 ← IO.monoNanosNow
         IO.println s!"  hybrid (count runs, then natural or blocked): {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
+      for minRun in [256, 1024, 4096] do
+        let t0 ← IO.monoNanosNow
+        let r ← IO.lazyPure (fun _ => NR.sortNaturalB minRun us)
+        let t1 ← IO.monoNanosNow
+        IO.println s!"  natural runs, blockPasses to {minRun}: {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
       let t0 ← IO.monoNanosNow
       let k ← IO.lazyPure (fun _ => NR.countRuns us.size.toUInt64 0 us 0 (us.size.toUInt64 / 32) (by omega) (by simp; omega))
       let t1 ← IO.monoNanosNow

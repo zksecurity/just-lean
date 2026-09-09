@@ -77,6 +77,29 @@ built in this order, each step verified before the next:
 5. **Small sorts**: `sort4_stable`/`sort8_stable` networks with branchless selects, then `insertionSortRange`
    from 8/4 upward; +5% at 10M measured. Proof: 5 comparators, `decide`-able on the abstract permutation.
 
+**Prototype (this session, `NaturalRuns.lean`, `lake exe naturalruns N`)**: steps 1–3 as an unverified prototype
+that calls only verified kernels (`mergeKernel`, `reverseRange`, `insertionSortRange`, `blockPasses`,
+`sortBlocked`); only the run scan is `partial`. Runs are merged level by level (adjacent pairs, bidirectional
+when equal length), with a read-only run count first that bails out to `sortBlocked` when the average run
+is shorter than 32 (the scan costs 0.2–0.7 ms at 1M). Every output was checked against the reference.
+
+| input (1M) | `sortBlocked` | hybrid natural runs | driftsort |
+|---|---|---|---|
+| random | 29–30 | 30–31 | 19 |
+| 8 sorted runs | 30 | 5.5–6.3 | 7.3 |
+| sawtooth (runs of 1000) | 29 | 16 | 23 |
+| reversed | 29 | 2.1 | 0.6 |
+| sorted + 1% swaps | 30 | 37 (insertion to 32) / 30 (blockPasses to 4096) | 14 |
+
+Lessons for the verified version: (a) run detection + level merging beats driftsort on inputs with long
+runs; (b) extending short runs must not overwrite the following natural run (extending to 1024 destroyed the
+sawtooth case: 16 → 31 ms), so extend only the tail `[hi, lo+minRun)` and merge; (c) the 1%-swaps case is
+not about runs at all: driftsort wins there by sorting in-cache chunks of ~1000 with its small-sort +
+quicksort and merging fewer levels, so it needs the small-sort networks (step 5) and a fast path that skips
+merges when `src[mid-1] ≤ src[mid]` (implemented, no effect on this shape); (d) never compute
+`a.size < 2^64` at runtime in a loop, thread it as an erased hypothesis (the Nat comparison against a bignum
+made the scan 10× slower: 2.3 ms → 0.2 ms).
+
 Expected outcome: random stays at ~30 ms (28 with the small-sort networks), the run-based shapes drop to
 driftsort territory (8 runs: ~8 ms; 1% swaps: needs the stable quicksort or a Galloping merge to reach 14).
 Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of loop): run detection 150,
