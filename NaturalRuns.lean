@@ -2,6 +2,7 @@ import MergeSort.BidiSort
 import MergeSort.SmallRuns
 import MergeSort.Adaptive
 import MergeSort.Blocked
+import MergeSort.SkipMerge
 /-!
 # Experiment (unverified prototype): natural-run merge sort ("driftsort-lite", Part 3 step 1–3)
 Detect maximal ascending / strictly descending runs (descending ones reversed in place), extend short
@@ -96,15 +97,8 @@ def mergeLevel (runs : Array UInt64) (i : Nat) (src dst : UInt64Array) (out : Ar
     if h2 : i + 2 < runs.size then
       let hi := runs[i + 2]
       let dst :=
-        if hh : dst.size < 2 ^ 64 ∧ hi.toNat ≤ src.size ∧ hi.toNat ≤ dst.size ∧ lo.toNat ≤ mid.toNat ∧ mid.toNat ≤ hi.toNat
-            ∧ src.size < 2 ^ 64 ∧ lo.toNat < mid.toNat ∧ mid.toNat < hi.toNat then
-          -- fast path: the two runs are already in order
-          if src.get (mid - 1) (by have := hh.2.2.2.2.2.2; have := hh.2.1; u64) ≤ src.get mid (by have := hh.2.2.2.2.2.2.2; have := hh.2.1; u64) then
-            copyRange lo hi src dst
-          else
-            (mergeKernel lo mid hi src dst hh.1 hh.2.1 hh.2.2.1 hh.2.2.2.1 hh.2.2.2.2.1).1
-        else if hh : dst.size < 2 ^ 64 ∧ hi.toNat ≤ src.size ∧ hi.toNat ≤ dst.size ∧ lo.toNat ≤ mid.toNat ∧ mid.toNat ≤ hi.toNat then
-          (mergeKernel lo mid hi src dst hh.1 hh.2.1 hh.2.2.1 hh.2.2.2.1 hh.2.2.2.2).1
+        if hh : dst.size < 2 ^ 64 ∧ hi.toNat ≤ src.size ∧ hi.toNat ≤ dst.size ∧ lo.toNat ≤ mid.toNat ∧ mid.toNat ≤ hi.toNat then
+          (mergeKernelS lo mid hi src dst hh.1 hh.2.1 hh.2.2.1 hh.2.2.2.1 hh.2.2.2.2).1
         else dst
       mergeLevel runs (i + 2) src dst (out.push lo)
     else
