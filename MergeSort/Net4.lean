@@ -44,3 +44,51 @@ theorem net4_perm (a b c d : UInt64) : (net4 a b c d).Perm [a, b, c, d] := by
        simp only [List.count_cons, List.count_nil, beq_iff_eq]; omega)
 
 end MergeSort.BottomUp
+
+namespace MergeSort.BottomUp
+open UInt64Array MergeSort.Fast
+
+/-- Sort `a[lo], a[lo+1], a[lo+2], a[lo+3]` in place with the network (straight-line, branchless). -/
+def sort4 (lo : UInt64) (a : UInt64Array) (hsz : a.size < 2 ^ 64 := by u64)
+    (h : lo.toNat + 4 ≤ a.size := by u64) : { b : UInt64Array // b.size = a.size } :=
+  have e1 : (lo + 1).toNat = lo.toNat + 1 := by u64
+  have e2 : (lo + 2).toNat = lo.toNat + 2 := by u64
+  have e3 : (lo + 3).toNat = lo.toNat + 3 := by u64
+  let x0 := a.get lo
+  let x1 := a.get (lo + 1)
+  let x2 := a.get (lo + 2)
+  let x3 := a.get (lo + 3)
+  let a1 := mn x0 x1
+  let b1 := mx x0 x1
+  let c1 := mn x2 x3
+  let d1 := mx x2 x3
+  let a2 := mn a1 c1
+  let c2 := mx a1 c1
+  let b2 := mn b1 d1
+  let d2 := mx b1 d1
+  let b3 := mn c2 b2
+  let c3 := mx c2 b2
+  ⟨(((a.set lo a2).set (lo + 1) b3 (by simp; omega)).set (lo + 2) c3 (by simp; omega)).set (lo + 3) d2 (by simp; omega),
+    by simp⟩
+
+theorem sort4_spec (lo : UInt64) (a : UInt64Array) hsz h :
+    (sort4 lo a hsz h).1.slice lo.toNat 4 =
+      net4 (a.at' lo.toNat) (a.at' (lo.toNat + 1)) (a.at' (lo.toNat + 2)) (a.at' (lo.toNat + 3)) ∧
+    ∀ x, (x < lo.toNat ∨ lo.toNat + 4 ≤ x) → (sort4 lo a hsz h).1.at' x = a.at' x := by
+  have e1 : (lo + 1).toNat = lo.toNat + 1 := by u64g
+  have e2 : (lo + 2).toNat = lo.toNat + 2 := by u64g
+  have e3 : (lo + 3).toNat = lo.toNat + 3 := by u64g
+  unfold sort4 net4
+  dsimp only
+  refine ⟨?_, fun x hx => ?_⟩
+  · simp only [show (4 : Nat) = 0 + 1 + 1 + 1 + 1 from rfl, slice_succ, slice_zero, List.nil_append,
+      Nat.add_zero, at'_set, e1, e2, e3, get_eq_at']
+    simp
+  · simp only [at'_set, e1, e2, e3]
+    have h0 : lo.toNat ≠ x := by omega
+    have h1 : lo.toNat + 1 ≠ x := by omega
+    have h2 : lo.toNat + 2 ≠ x := by omega
+    have h3 : lo.toNat + 3 ≠ x := by omega
+    simp [h0, h1, h2, h3]
+
+end MergeSort.BottomUp
