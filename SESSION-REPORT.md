@@ -24,7 +24,7 @@ sortAdaptive2/sortBlocked 30 / 364 · Rust same algorithm 29 / 366 · driftsort 
 sort2 30–34 / 410–500 · sort16 46 / 568 · BottomUp.sort 48 / 600 · Fast.sort 68 / 780 ·
 Rust plain merge sort 82 / 965 · do-notation version 1010 / 13072.
 Presorted 1M: 0.5 ms (Rust 0.4); reversed 1M: 1.4 ms with the single fused scan (2.4 ms with two scans). 1k elements: 0.021 ms (driftsort 0.017).
-Peak RSS 10M: 167 MB (Rust 119 MB). Clean build of all proofs: ~60 s.
+Peak RSS 10M: 167 MB (Rust 119 MB). Clean build of all proofs: 49 s (measured after the last change; 1.4 GB peak).
 
 ## Answers
 - Bullet 2 target ("as fast as plain idiomatic Rust merge sort"): exceeded 2.7× with the same-trick

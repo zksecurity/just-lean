@@ -181,7 +181,7 @@ Medians of 5 idle runs at 1M: `sortBlocked` 30.1 · Rust same algorithm 29.0 · 
 Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-notation loop 1010 / 13072.
 
 ## Files (lines / clean-build seconds)
-Simple 105 · UInt64Array 91 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 · BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 · SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 253 (6.4 s) · Adaptive 412 (4 s) · SkipMerge 128 · FindRun 157 · Export 10. Total 3224 lines, ~60 s clean build.
+Simple 105 · UInt64Array 91 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 · BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 · SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 253 (6.4 s) · Adaptive 412 (4 s) · SkipMerge 128 · FindRun 157 · Export 10. Total 3382 lines (incl. SkipMerge 128, FindRun 157, Net4 260), 49 s clean build.
 
 ## Scaling (ms, random u64, same machine, one run each; the 10M spread of 330–430 seen earlier came from concurrent builds, idle machine: Lean 370–376, Rust same algorithm 373–378, driftsort 270–273)
 | n | Lean `sortBlocked` (verified) | Rust same algorithm | Rust plain merge sort | Rust driftsort |
