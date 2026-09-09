@@ -37,6 +37,8 @@ def main : IO Unit := do
           if r6 != ref then bad.modify (· + 1); IO.println s!"MISMATCH sortAdaptive n={n}"
           let r7 := (MergeSort.BottomUp.sortAdaptive2 a h).toArray
           if r7 != ref then bad.modify (· + 1); IO.println s!"MISMATCH sortAdaptive2 n={n}"
+          let r8 := (MergeSort.BottomUp.sortAdaptive3 a h).toArray
+          if r8 != ref then bad.modify (· + 1); IO.println s!"MISMATCH sortAdaptive3 n={n}"
           if r1 != ref then bad.modify (· + 1); IO.println s!"MISMATCH Fast n={n}"
           if r2 != ref then bad.modify (· + 1); IO.println s!"MISMATCH BottomUp n={n}"
           if r3 != ref then bad.modify (· + 1); IO.println s!"MISMATCH sort16 n={n}"

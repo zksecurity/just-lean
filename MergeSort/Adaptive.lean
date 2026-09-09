@@ -276,3 +276,137 @@ theorem sortAdaptive2_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sortAd
   · exact List.Perm.refl _
 
 end MergeSort.BottomUp
+
+namespace MergeSort.BottomUp
+open UInt64Array MergeSort.Fast
+
+/-- One scan deciding both "already sorted" and "strictly descending"; stops early once neither can hold. -/
+def scanFrom (n i : UInt64) (a : UInt64Array) (asc desc : Bool)
+    (hsz : a.size < 2 ^ 64 := by u64) (hn : n.toNat ≤ a.size := by u64)
+    (hi : 1 ≤ i.toNat ∧ i.toNat ≤ n.toNat := by u64) : Bool × Bool :=
+  if h : i < n ∧ (asc || desc) then
+    have h : i.toNat < n.toNat := h.1
+    let x := a.get (i - 1)
+    let y := a.get i
+    scanFrom n (i + 1) a (asc && decide (x ≤ y)) (desc && decide (y < x))
+  else (asc, desc)
+termination_by n.toNat - i.toNat
+decreasing_by u64
+
+theorem scanFrom_spec (n : UInt64) (a : UInt64Array) :
+    ∀ (m : Nat) (i : UInt64) (asc desc : Bool) hsz hn hi, m = n.toNat - i.toNat →
+    (asc = true → Sorted le64 (a.slice 0 i.toNat)) →
+    (desc = true → (a.slice 0 i.toNat).Pairwise (fun x y => y < x)) →
+    ((scanFrom n i a asc desc hsz hn hi).1 = true → Sorted le64 (a.slice 0 n.toNat)) ∧
+    ((scanFrom n i a asc desc hsz hn hi).2 = true → (a.slice 0 n.toNat).Pairwise (fun x y => y < x)) := by
+  intro m
+  induction m using Nat.strongRecOn with
+  | _ m ih =>
+  intro i asc desc hsz hn hi hm hs hd
+  rw [scanFrom]
+  split
+  · rename_i h
+    have h' : i.toNat < n.toNat := h.1
+    have ei : (i + 1).toNat = i.toNat + 1 := by u64g
+    have ei' : (i - 1).toNat = i.toNat - 1 := by u64g
+    dsimp only
+    have hsplit : a.slice 0 i.toNat = a.slice 0 (i.toNat - 1) ++ [a.at' (i.toNat - 1)] := by
+      rw [show i.toNat = (i.toNat - 1) + 1 by omega, slice_succ, Nat.zero_add,
+        show i.toNat - 1 + 1 - 1 = i.toNat - 1 by omega]
+    refine ih (n.toNat - (i + 1).toNat) (by omega) (i + 1) _ _ hsz hn (by omega) rfl ?_ ?_
+    · intro hb
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hb
+      have hs := hs hb.1
+      have hle' : a.at' (i.toNat - 1) ≤ a.at' i.toNat := by simpa [get_eq_at', ei'] using hb.2
+      rw [ei, slice_succ, Nat.zero_add, Sorted, List.pairwise_append]
+      refine ⟨hs, List.pairwise_singleton _ _, fun z hz y hy => ?_⟩
+      simp at hy; subst hy
+      rw [hsplit] at hz hs
+      rcases List.mem_append.mp hz with hz | hz
+      · simpa using UInt64.le_trans (sorted_last_le _ _ hs z hz) hle'
+      · simp at hz; subst hz; simpa using hle'
+    · intro hb
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hb
+      have hd := hd hb.1
+      have hlt' : a.at' i.toNat < a.at' (i.toNat - 1) := by simpa [get_eq_at', ei'] using hb.2
+      rw [ei, slice_succ, Nat.zero_add, List.pairwise_append]
+      refine ⟨hd, List.pairwise_singleton _ _, fun z hz y hy => ?_⟩
+      simp at hy; subst hy
+      rw [hsplit] at hz hd
+      rcases List.mem_append.mp hz with hz | hz
+      · exact UInt64.lt_trans hlt' ((List.pairwise_append.mp hd).2.2 z hz _ (List.mem_singleton.mpr rfl))
+      · simp at hz; subst hz; exact hlt'
+  · rename_i h
+    have h : ¬ (i.toNat < n.toNat ∧ (asc || desc) = true) := fun c => h ⟨UInt64.lt_iff_toNat_lt.mpr c.1, c.2⟩
+    dsimp only
+    refine ⟨fun ha => ?_, fun hdd => ?_⟩
+    · have : ¬ i.toNat < n.toNat := fun c => h ⟨c, by simp [ha]⟩
+      rw [show n.toNat = i.toNat by omega]; exact hs ha
+    · have : ¬ i.toNat < n.toNat := fun c => h ⟨c, by simp [hdd]⟩
+      rw [show n.toNat = i.toNat by omega]; exact hd hdd
+
+/-- Single-scan adaptive sort: sorted input is returned, strictly descending input is reversed. -/
+def sortAdaptive3 (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
+  let n : UInt64 := xs.size.toUInt64
+  have hn : n.toNat = xs.size := by simp [n]; omega
+  if h : 1 < n then
+    have h : 1 < n.toNat := h
+    let r := scanFrom n 1 xs true true
+    if r.1 then xs
+    else if r.2 then (reverseRange 0 n xs).1
+    else sortBlocked xs hsz
+  else xs
+
+/-- The single-scan adaptive sort produces a sorted list. -/
+theorem sortAdaptive3_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortAdaptive3 xs hsz).data.toList := by
+  rw [sortAdaptive3]
+  have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
+  dsimp only
+  split
+  · rename_i h
+    have h : 1 < (xs.size.toUInt64).toNat := h
+    obtain ⟨S1, D1⟩ := scanFrom_spec xs.size.toUInt64 xs _ 1 true true (by omega) (by omega) (by u64g) rfl
+      (fun _ => by simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, slice_one]; simp [Sorted])
+      (fun _ => by simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, slice_one]; simp)
+    split
+    · rename_i hb
+      have := S1 hb
+      rw [hn, slice_eq_toList] at this
+      exact this
+    · split
+      · rename_i hb
+        have hd := D1 hb
+        obtain ⟨R1, _⟩ := reverseRange_spec ((xs.size.toUInt64).toNat - (0 : UInt64).toNat) 0 xs.size.toUInt64 xs (by omega)
+          (by omega) (by u64g) rfl
+        simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.sub_zero] at R1
+        have hs' : (reverseRange 0 xs.size.toUInt64 xs (by omega) (by omega) (by u64g)).1.size = (xs.size.toUInt64).toNat := by
+          rw [(reverseRange _ _ _ _ _ _).2, hn]
+        rw [← slice_eq_toList, hs', R1, Sorted, List.pairwise_reverse]
+        exact hd.imp fun hxy => by simpa using UInt64.le_of_lt hxy
+      · exact sortBlocked_sorted xs hsz
+  · rename_i h
+    have h : ¬ 1 < (xs.size.toUInt64).toNat := h
+    rw [← slice_eq_toList]
+    exact sorted_of_length_le_one _ (by simp; omega)
+
+/-- The single-scan adaptive sort produces a permutation of its input. -/
+theorem sortAdaptive3_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sortAdaptive3 xs hsz).data.toList.Perm xs.data.toList := by
+  rw [sortAdaptive3]
+  have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
+  dsimp only
+  split
+  · split
+    · exact List.Perm.refl _
+    · split
+      · obtain ⟨R1, _⟩ := reverseRange_spec ((xs.size.toUInt64).toNat - (0 : UInt64).toNat) 0 xs.size.toUInt64 xs (by omega)
+          (by omega) (by u64g) rfl
+        simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.sub_zero] at R1
+        have hs' : (reverseRange 0 xs.size.toUInt64 xs (by omega) (by omega) (by u64g)).1.size = (xs.size.toUInt64).toNat := by
+          rw [(reverseRange _ _ _ _ _ _).2, hn]
+        have exs : xs.slice 0 (xs.size.toUInt64).toNat = xs.data.toList := by rw [hn, slice_eq_toList]
+        rw [← slice_eq_toList, hs', R1, ← exs]
+        exact List.reverse_perm _
+      · exact sortBlocked_perm xs hsz
+  · exact List.Perm.refl _
+
+end MergeSort.BottomUp

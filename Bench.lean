@@ -61,3 +61,11 @@ def main (args : List String) : IO Unit := do
       let r ← IO.lazyPure (fun _ => BottomUp.sortAdaptive2 revIn h3)
       let t1 ← IO.monoNanosNow
       IO.println s!"BottomUp.sortAdaptive2 on reversed input: {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
+      let t0 ← IO.monoNanosNow
+      let r ← IO.lazyPure (fun _ => BottomUp.sortAdaptive3 revIn h3)
+      let t1 ← IO.monoNanosNow
+      IO.println s!"BottomUp.sortAdaptive3 (single scan) on reversed input: {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
+      let t0 ← IO.monoNanosNow
+      let r ← IO.lazyPure (fun _ => BottomUp.sortAdaptive3 us h)
+      let t1 ← IO.monoNanosNow
+      IO.println s!"BottomUp.sortAdaptive3 (single scan) on random input: {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
