@@ -90,6 +90,9 @@ is shorter than 32 (the scan costs 0.2–0.7 ms at 1M). Every output was checked
 | reversed | 29 | 2.1 | 0.6 |
 | sorted + 1% swaps | 30 | 37 (insertion to 32) / 30 (blockPasses to 4096) | 14 |
 
+At 10M (ms): 8 runs 57 vs driftsort 97 · sawtooth 273 vs 268 · reversed 23 vs 9 · random 390 vs 270 ·
+1% swaps 444 vs (driftsort n/a, `sortBlocked` 367).
+
 Lessons for the verified version: (a) run detection + level merging beats driftsort on inputs with long
 runs; (b) extending short runs must not overwrite the following natural run (extending to 1024 destroyed the
 sawtooth case: 16 → 31 ms), so extend only the tail `[hi, lo+minRun)` and merge; (c) the 1%-swaps case is
