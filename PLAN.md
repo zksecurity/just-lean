@@ -168,9 +168,10 @@ onto the already-produced prefix, exactly like `passLoop2_spec`; the odd last ru
 choice needs no proof at all (both branches are verified sorts).
 
 Expected outcome: random stays at ~30 ms (28 with the small-sort networks), the run-based shapes drop to
-driftsort territory (8 runs: ~8 ms; 1% swaps: needs the stable quicksort or a Galloping merge to reach 14).
-Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of loop): run detection 150,
-run stack 300, stable quicksort 500+.
+driftsort territory (8 runs: measured 5.5 ms in the prototype; 1% swaps: needs the stable quicksort or a
+galloping merge to reach 14). Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of
+loop): run detection 150 (done: `FindRun.lean` is 157 lines), small sorts 200 (done: `Net4.lean` 260 lines
+incl. `sort8`), run stack 300, stable quicksort 500+.
 
 ## Numbers to quote (1M / 10M `u64`, ms)
 Medians of 5 idle runs at 1M: `sortBlocked` 30.1 · Rust same algorithm 29.0 · `BottomUp.sort` 49.0 · `Fast.sort` 69.8 · Rust plain 81.1 · driftsort 18.4.
