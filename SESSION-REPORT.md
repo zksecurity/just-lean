@@ -1,7 +1,7 @@
 # Session report — 2026-09-09 (10:00–15:00 CET grind on "bullet 2")
 
 ## Deliverables (all in `~/code/lean-just-lean/`)
-- `verified/` — Lean 4.33.1 project, 3.2k lines, 20 verified results (18 sort theorems + `mergeKernelS_spec` + `findRun_spec`) on standard axioms, no `sorry`, zero linter
+- `verified/` — Lean 4.33.1 project, 3.3k lines, 22 verified results (18 sort theorems + `mergeKernelS_spec` + `findRun_spec` + `net4_sorted`/`net4_perm`) on standard axioms, no `sorry`, zero linter
   warnings; `check.sh` builds, cross-checks all sorts on 37 sizes × 3 seeds × 4 input shapes, prints axioms,
   benchmarks. Also builds unchanged on 4.33.0 (`verified-4330/`).
 - Verified sorts: `Fast.sort` (top-down, `sort_toList` = exactly Part 1's `mergeSort`), `BottomUp.sort`,
@@ -72,3 +72,8 @@ so it is a drop-in for the natural-run merge of Part 3 (Rust measurements in `PL
 `findRun lo n a` = maximal ascending / strictly descending run from `lo` (descending reversed in place),
 `findRun_spec`: the run is sorted, a permutation of the original slice, frame outside. With `mergeKernelS`
 this is steps 1 and the merge of step 3 of the Part 3 design; what remains is the run stack.
+
+## Verified Part 3 building block 3: `MergeSort/Net4.lean`
+A 5-comparator sorting network on four values built from branchless `mn`/`mx` selects; `net4_sorted` and
+`net4_perm` are proved by exhaustive case analysis (`repeat' split`, then `omega` on every leaf; 1.7 s).
+This is the shape of driftsort's `sort4_stable`; `sort8_stable` = two of these + a 4+4 bidirectional merge.

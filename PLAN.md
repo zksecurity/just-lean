@@ -90,9 +90,9 @@ built in this order, each step verified before the next:
    `sort8_stable` (a 19-comparator network built from two `sort4_stable` + a bidirectional 4+4 merge,
    all `swap_if_less` selects) into scratch, extend each half with insertion (`insert_tail`), then one
    `bidirectional_merge` of the two halves back into place. The unstable variant (`ipnsort`) uses
-   `sort9_optimal`/`sort13_optimal` networks. Verified version: `sort4_stable` and `sort8_stable` as
-   straight-line code over `get`/`set` with a `decide`d correctness lemma on the 8-element list (the merge
-   step is `mergeBidi_spec` on runs of length 4). Measured +5% at 10M with an unverified `net8`.
+   `sort9_optimal`/`sort13_optimal` networks. Verified version: `Net4.lean` has the 4-element network (`net4_sorted`, `net4_perm`, exhaustive case
+   split + `omega`, 1.7 s); `sort8_stable` = two `net4` + a 4+4 bidirectional merge (`mergeBidi_spec` on
+   runs of length 4); the array wrapper writes the four results with `set` (spec by `slice_succ`/`at'_set`). Measured +5% at 10M with an unverified `net8`.
 
 Also from `merge.rs`: driftsort's physical merge copies the *shorter* run to scratch and merges it
 forward (if it is the left run) or backward (if it is the right run) directly into `v`, so it needs only
