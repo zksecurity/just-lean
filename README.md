@@ -55,11 +55,13 @@ compiler and runtime, and clang. `Sorted` is with respect to unsigned `≤` on `
 
 | implementation | 1M | 10M |
 |---|---|---|
-| Lean `BottomUp.sortBlocked` (verified, bidirectional + cache-blocked passes, B = 2^14) | 30–35 | 370–440 |
+| Lean `BottomUp.sortBlocked` (verified, bidirectional + cache-blocked passes, B = 2^14) | 30–32 | 370–376 |
+| Lean natural-run hybrid prototype (`NaturalRuns.lean`; verified kernels, loops unspecified): random / 8 runs / sawtooth / reversed | 30 / 5.5 / 16 / 2.1 | 390 / 57 / 273 / 23 |
+| Rust `Vec::sort` (driftsort) on the same shapes | 19 / 7.3 / 23 / 0.6 | 270 / 97 / 268 / 9 |
 | Lean `BottomUp.sort2` (verified, bidirectional branchless merge) | 30–34 (5 runs: 30.1–34.2) | 410–500 |
 | Lean `BottomUp.sort16` (verified, branchless, insertion runs of 16) | 46 | 568 |
 | Lean `BottomUp.sort` (verified, branchless) | 48 | 589 |
-| Rust bidirectional + cache-blocked (same algorithm as `sortBlocked`) | 29 | 366 |
+| Rust bidirectional + cache-blocked (same algorithm as `sortBlocked`) | 28–29 | 373–378 |
 | Rust bottom-up, branchless merge (same trick) | 48 | 555 |
 | Lean `Fast.sort` (verified top-down, branchless) | 67 | 768 |
 | Rust plain bottom-up merge sort | 84 | 972 |
