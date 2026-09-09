@@ -126,7 +126,8 @@ the result from the same buffer (the sort runs in place when the refcount is 1).
 `../site-smoke` is a minimal Verso (`v4.33.0`) manual that requires this project (the `verified-4330` copy)
 and renders `{docstring MergeSort.mergeSort}`, `{name}` roles and a `#eval` block whose output is checked at
 build time (`leanOutput`). Building Verso from source plus the document took 1 min 38 s; `lake exe site-smoke`
-writes the HTML to `_out/`.
+writes the HTML to `_out/`. A tactic proof in a `lean` block renders with per-step proof states (hypotheses and
+goals) as in the Lean reference manual, which is the feature the tutorial relies on.
 
 ## Toolchains
 
