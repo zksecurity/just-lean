@@ -20,6 +20,13 @@ def getU (a : @& A) (i : UInt64) : UInt64 := if h : i.toNat < a.size then a.get 
 def setU (a : A) (i v : UInt64) : A := if h : i.toNat < a.size then a.set i v h else a
 @[inline] def get! (a : @& A) (i : UInt64) : UInt64 := getU a i
 @[inline] def set! (a : A) (i v : UInt64) : A := setU a i v
+
+/-- two stores, one exclusivity check (model: two `set!`s) -/
+@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a); _p[#2] = #3; _p[#4] = #5; _a; })"]
+def set2 (a : A) (i v j w : UInt64) : A := set! (set! a i v) j w
+/-- four consecutive stores, one exclusivity check (model: four `set!`s) -/
+@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); uint64_t* _p = (uint64_t*)lean_sarray_cptr(_a) + #2; _p[0] = #3; _p[1] = #4; _p[2] = #5; _p[3] = #6; _a; })"]
+def set4 (a : A) (d v0 v1 v2 v3 : UInt64) : A := set! (set! (set! (set! a d v0) (d + 1) v1) (d + 2) v2) (d + 3) v3
 @[inline] def lt (a b : UInt64) : Bool := decide (a < b)
 
 /-- `SMALL_SORT_GENERAL_THRESHOLD` -/
@@ -56,7 +63,7 @@ def pseudoMedianRecThreshold : UInt64 := 64
   let c5 := lt ur ul
   let lo := if c5 then ur else ul
   let hi := if c5 then ul else ur
-  set! (set! (set! (set! dst d mn) (d + 1) lo) (d + 2) hi) (d + 3) mx
+  set4 dst d mn lo hi mx
 
 /-- The loop of `bidirectional_merge` (`k` iterations left), reading from `src`, writing to `dst`;
     the odd-length fix-up is done in the base case so that the loop returns only the array
@@ -68,15 +75,14 @@ def bidiLoop (src : @& A) (dst : A) (k left right out leftRev rightRev outRev : 
     let l := get! src left
     let r := get! src right
     let isL := !(lt r l)
-    let dst := set! dst out (if isL then l else r)
     let right := right + (if isL then 0 else 1)
     let left := left + (if isL then 1 else 0)
-    let out := out + 1
     -- merge_down
     let lr := get! src leftRev
     let rr := get! src rightRev
     let isL' := !(lt rr lr)
-    let dst := set! dst outRev (if isL' then rr else lr)
+    let dst := set2 dst out (if isL then l else r) outRev (if isL' then rr else lr)
+    let out := out + 1
     let rightRev := rightRev - (if isL' then 1 else 0)
     let leftRev := leftRev - (if isL' then 0 else 1)
     let outRev := outRev - 1
@@ -101,14 +107,13 @@ def bidiLoopSame (a : A) (k left right out leftRev rightRev outRev : UInt64) (od
     let l := get! a left
     let r := get! a right
     let isL := !(lt r l)
-    let a := set! a out (if isL then l else r)
     let right := right + (if isL then 0 else 1)
     let left := left + (if isL then 1 else 0)
-    let out := out + 1
     let lr := get! a leftRev
     let rr := get! a rightRev
     let isL' := !(lt rr lr)
-    let a := set! a outRev (if isL' then rr else lr)
+    let a := set2 a out (if isL then l else r) outRev (if isL' then rr else lr)
+    let out := out + 1
     let rightRev := rightRev - (if isL' then 1 else 0)
     let leftRev := leftRev - (if isL' then 0 else 1)
     let outRev := outRev - 1

@@ -73,8 +73,11 @@ def phases (n : Nat) : IO Unit := do
   let xs := gen n 42
   let nn := n.toUInt64
   IO.println s!"phases on n = {n} random (cold / warm, same buffers threaded through):"
+  let src := UInt64Array.ofArray xs
   let twice (label : String) (f : UInt64Array → UInt64Array → UInt64Array × UInt64Array) : IO Unit := do
     let (t1, (v, s)) ← timeMs (fun _ => f (UInt64Array.ofArray xs) (UInt64Array.zeros n))
+    -- warm run: same (already touched) buffers, random data copied back in
+    let v := Drift.copyRange src v 0 0 nn
     let (t2, _) ← timeMs (fun _ => f v s)
     IO.println s!"  {label}: {t1} / {t2} ms"
   twice "one stable partition (scan + copy back)" (fun v s => let (_, v, s) := Drift.stablePartition v s 0 nn (nn / 2) false false; (v, s))
@@ -86,6 +89,38 @@ def phases (n : Nat) : IO Unit := do
     | 0 => (v, s)
     | f + 1 => if lo + 32 ≤ nn then let (v, s) := Drift.smallSort v s lo (lo + 32); blocks (lo + 32) v s f else (v, s)
   twice "smallSort on every block of 32         " (fun v s => blocks 0 v s (n / 32 + 1))
+  let rec stage1 (lo : UInt64) (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
+    match fuel with
+    | 0 => (v, s)
+    | f + 1 => if lo + 32 ≤ nn then
+        let s := Drift.sort8Stable v lo s 0 32
+        let s := Drift.sort8Stable v (lo + 16) s 16 40
+        stage1 (lo + 32) v s f
+      else (v, s)
+  twice "  stage 1: two sort8 per block           " (fun v s => stage1 0 v s (n / 32 + 1))
+  let rec stage12 (lo : UInt64) (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
+    match fuel with
+    | 0 => (v, s)
+    | f + 1 => if lo + 32 ≤ nn then
+        let s := Drift.sort8Stable v lo s 0 32
+        let s := Drift.sort8Stable v (lo + 16) s 16 40
+        let s := Drift.smallInsertLoop v s lo 0 8 16
+        let s := Drift.smallInsertLoop v s (lo + 16) 16 8 16
+        stage12 (lo + 32) v s f
+      else (v, s)
+  twice "  stage 1+2: + insertion of 8+8          " (fun v s => stage12 0 v s (n / 32 + 1))
+  let rec stage123 (lo : UInt64) (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
+    match fuel with
+    | 0 => (v, s)
+    | f + 1 => if lo + 32 ≤ nn then
+        let s := Drift.sort8Stable v lo s 0 32
+        let s := Drift.sort8Stable v (lo + 16) s 16 40
+        let s := Drift.smallInsertLoop v s lo 0 8 16
+        let s := Drift.smallInsertLoop v s (lo + 16) 16 8 16
+        let v := Drift.bidirectionalMerge s 0 32 v lo
+        stage123 (lo + 32) v s f
+      else (v, s)
+  twice "  stage 1+2+3: + bidirectional merge     " (fun v s => stage123 0 v s (n / 32 + 1))
   twice "stableQuicksort on the whole array     " (fun v s => Drift.stableQuicksort v s 0 nn nn)
   twice "Drift.sort entry (whole sort)          " (fun v _ => (Drift.sort v, UInt64Array.zeros 1))
 
