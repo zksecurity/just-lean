@@ -59,6 +59,7 @@ def sortAdaptive (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
     if isSortedFrom n 1 xs then xs else sortBlocked xs hsz
   else xs
 
+/-- The adaptive sort (sorted check only) produces a sorted list. -/
 theorem sortAdaptive_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortAdaptive xs hsz).data.toList := by
   rw [sortAdaptive]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
@@ -78,6 +79,7 @@ theorem sortAdaptive_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted
     rw [← slice_eq_toList]
     exact sorted_of_length_le_one _ (by simp; omega)
 
+/-- The adaptive sort (sorted check only) produces a permutation of its input. -/
 theorem sortAdaptive_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sortAdaptive xs hsz).data.toList.Perm xs.data.toList := by
   rw [sortAdaptive]
   dsimp only
@@ -222,6 +224,7 @@ def sortAdaptive2 (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
     else sortBlocked xs hsz
   else xs
 
+/-- The adaptive sort produces a sorted list. -/
 theorem sortAdaptive2_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortAdaptive2 xs hsz).data.toList := by
   rw [sortAdaptive2]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
@@ -252,6 +255,7 @@ theorem sortAdaptive2_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorte
     rw [← slice_eq_toList]
     exact sorted_of_length_le_one _ (by simp; omega)
 
+/-- The adaptive sort produces a permutation of its input. -/
 theorem sortAdaptive2_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sortAdaptive2 xs hsz).data.toList.Perm xs.data.toList := by
   rw [sortAdaptive2]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega

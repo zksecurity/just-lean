@@ -14,7 +14,10 @@ operation is an `extern` that works on the flat buffer.
     exist). It is the default tactic for every bounds proof, so call sites can omit them. -/
 syntax "u64" : tactic
 
+/-- An unboxed array of `UInt64`. The field is the *model* used by proofs; at runtime the value is a
+    flat `lean_sarray` of 8-byte elements, and every operation below is implemented by inline C. -/
 structure UInt64Array where
+  /-- The model: the elements as an ordinary `Array`. Never used at runtime. -/
   data : Array UInt64
 
 attribute [extern "u64array_mk"] UInt64Array.mk
