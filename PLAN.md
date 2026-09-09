@@ -94,9 +94,13 @@ is shorter than 32 (the scan costs 0.2–0.7 ms at 1M). Every output was checked
 Lessons for the verified version: (a) run detection + level merging beats driftsort on inputs with long
 runs; (b) extending short runs must not overwrite the following natural run (extending to 1024 destroyed the
 sawtooth case: 16 → 31 ms), so extend only the tail `[hi, lo+minRun)` and merge; (c) the 1%-swaps case is
-not about runs at all: driftsort wins there by sorting in-cache chunks of ~1000 with its small-sort +
-quicksort and merging fewer levels, so it needs the small-sort networks (step 5) and a fast path that skips
-merges when `src[mid-1] ≤ src[mid]` (implemented, no effect on this shape); (d) never compute
+not about runs at all (read `lab/driftsort-src/drift.rs`): driftsort only accepts natural runs of length
+≥ sqrt(n) (1000 at 1M) and otherwise emits *unsorted* logical runs that are concatenated lazily and
+sorted by its stable quicksort once they no longer fit the scratch buffer; on nearly sorted data that
+quicksort's small-sort (insertion sort below 32) is close to linear. A merge-only design cannot copy this;
+the merge-side answer is the small-sort networks (step 5) plus skipping merges whose runs are already in
+order (`src[mid-1] ≤ src[mid]`, implemented in the prototype, no effect on natural runs since they are cut
+exactly at the defects); (d) never compute
 `a.size < 2^64` at runtime in a loop, thread it as an erased hypothesis (the Nat comparison against a bignum
 made the scan 10× slower: 2.3 ms → 0.2 ms).
 
