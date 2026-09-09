@@ -116,6 +116,32 @@ the random-input cost (29.0) but also most of the gain (8 runs 19.2, swaps 28.8,
 skip belongs in the natural-run merge (where merges are between long runs) rather than in the bottom-up
 levels, which is exactly what driftsort does.
 
+**Next proof, stated precisely** (the run stack of step 3, matching the prototype's `mergeLevel`/`mergeAll`):
+
+```lean
+/-- `runs = #[r₀, …, rₖ]` with `r₀ = lo`, `rₖ = n`, strictly increasing; every `a[rⱼ, rⱼ₊₁)` is sorted. -/
+def RunsOK (runs : Array UInt64) (a : UInt64Array) : Prop :=
+  1 < runs.size ∧
+  ∀ j, j + 1 < runs.size → runs[j]!.toNat < runs[j + 1]!.toNat ∧
+    Sorted le64 (a.slice runs[j]!.toNat (runs[j + 1]!.toNat - runs[j]!.toNat))
+
+theorem mergeLevel_spec (runs : Array UInt64) (src dst : UInt64Array) (h : RunsOK runs src) … :
+    let r := mergeLevel runs 0 src dst #[]
+    RunsOK (r.1.push runs[runs.size - 1]!) r.2.2 ∧
+    (r.2.2.slice runs[0]!.toNat (runs[runs.size - 1]!.toNat - runs[0]!.toNat)).Perm
+      (src.slice runs[0]!.toNat (runs[runs.size - 1]!.toNat - runs[0]!.toNat)) ∧
+    r.1.size + 1 ≤ (runs.size + 2) / 2          -- the level halves the number of runs
+
+theorem collectRuns_spec … : RunsOK (collectRuns minRun n 0 a #[] …).1 (collectRuns …).2 ∧ perm ∧ frame
+```
+
+Induction for `mergeLevel_spec` is on `runs.size - i` (two runs per step), each step is
+`mergeKernelS_spec` (sorted-run premises come from `RunsOK`) plus `slice_add` to glue the merged slice
+onto the already-produced prefix, exactly like `passLoop2_spec`; the odd last run is `copyRange_spec`.
+`collectRuns_spec` is `findRun_spec` + `insertionSortRange_spec` per step. With both, `sortNatural_sorted`
+/ `sortNatural_perm` follow by induction on the number of levels (`mergeAll`), and the hybrid's policy
+choice needs no proof at all (both branches are verified sorts).
+
 Expected outcome: random stays at ~30 ms (28 with the small-sort networks), the run-based shapes drop to
 driftsort territory (8 runs: ~8 ms; 1% swaps: needs the stable quicksort or a Galloping merge to reach 14).
 Proof budget estimate from Part 2's rates (~100 lines of spec per 40 lines of loop): run detection 150,
