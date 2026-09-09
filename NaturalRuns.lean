@@ -3,27 +3,15 @@ import MergeSort.SmallRuns
 import MergeSort.Adaptive
 import MergeSort.Blocked
 import MergeSort.SkipMerge
+import MergeSort.FindRun
 /-!
 # Experiment (unverified prototype): natural-run merge sort ("driftsort-lite", Part 3 step 1–3)
 Detect maximal ascending / strictly descending runs (descending ones reversed in place), extend short
 runs to 32 with insertion sort, then merge adjacent runs level by level with the *verified* `mergeKernel`
-(bidirectional when the two runs have equal length). Only the run scan uses `partial`.
+(bidirectional when the two runs have equal length). Run detection (`findRun`) and every merge (`mergeKernelS`) are verified; only the glue loops use `partial`.
 -/
 open UInt64Array MergeSort MergeSort.BottomUp
 namespace NR
-
-/-- Scan the ascending run starting at `lo` (elements already checked up to `i`). -/
-partial def ascEnd (n i : UInt64) (a : UInt64Array) (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) (hi : 1 ≤ i.toNat) : UInt64 :=
-  if h : i < n then
-    have h1 : i.toNat < n.toNat := h
-    if a.get (i - 1) ≤ a.get i then ascEnd n (i + 1) a hsz hn (by u64) else i
-  else i
-
-partial def descEnd (n i : UInt64) (a : UInt64Array) (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) (hi : 1 ≤ i.toNat) : UInt64 :=
-  if h : i < n then
-    have h1 : i.toNat < n.toNat := h
-    if a.get i < a.get (i - 1) then descEnd n (i + 1) a hsz hn (by u64) else i
-  else i
 
 /-- Collect run starts into `runs` (each run sorted in place); returns `(runs ++ [n], a, d)`.
     `useBlocks`: extend short runs with the verified cache-blocked bottom-up sort (`blockPasses`) on
@@ -36,13 +24,10 @@ partial def collectRunsB (useBlocks : Bool) (minRun n lo : UInt64) (a d : UInt64
     let runs := runs.push lo
     if h4 : lo + 1 < n then
       have : lo.toNat + 1 < n.toNat := by have := UInt64.lt_iff_toNat_lt.mp h4; u64
-      let x := a.get lo
-      let y := a.get (lo + 1)
-      let (hi, a) :=
-        if y < x then
-          let hi := descEnd n (lo + 2) a hsz hn (by u64)
-          if h2 : hi.toNat ≤ a.size ∧ lo.toNat ≤ hi.toNat then (hi, (reverseRange lo hi a h.2.1 h2.1 h2.2).1) else (hi, a)
-        else (ascEnd n (lo + 2) a hsz hn (by u64), a)
+      -- verified run detection (`FindRun.lean`): descending runs are reversed in place
+      let r := findRun lo n a hsz hn h1
+      let hi := r.1.1
+      let a := r.1.2
       -- extend short runs
       let (hi, a, d) :=
         if hi - lo < minRun then
@@ -69,7 +54,7 @@ partial def countRuns (n lo : UInt64) (a : @& UInt64Array) (acc limit : UInt64)
     have h1 : lo.toNat < n.toNat := h.1
     if h4 : lo + 1 < n then
       have : lo.toNat + 1 < n.toNat := by have := UInt64.lt_iff_toNat_lt.mp h4; u64
-      let hi := if a.get (lo + 1) < a.get lo then descEnd n (lo + 2) a hsz hn (by u64) else ascEnd n (lo + 2) a hsz hn (by u64)
+      let hi := if a.get (lo + 1) < a.get lo then (descEnd n (lo + 2) a hsz hn (by u64)).1 else (ascEnd n (lo + 2) a hsz hn (by u64)).1
       countRuns n hi a (acc + 1) limit hsz hn
     else acc + 1
   else acc
