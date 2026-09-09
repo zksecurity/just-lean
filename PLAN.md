@@ -28,7 +28,7 @@ states). No WASM. Bash snippets for the commands. One public repo = this project
 Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correct.lean`) whose theorem
 `sort_toList` says it computes *exactly* Part 1's `mergeSort` — the cleanest refinement story, 30% slower.
 
-## Part 3 — Advanced: toward `Vec::sort`  (`MergeBack.lean`, `Bidi.lean`, `BidiSort.lean`)
+## Part 3 — Advanced: toward `Vec::sort`  (`MergeBack.lean`, `Bidi.lean`, `BidiSort.lean`, `Blocked.lean`, `Adaptive.lean`, `SkipMerge.lean`, `FindRun.lean`, prototype `NaturalRuns.lean`)
 1. How driftsort works (run detection, small-sort networks, lazy powersort merges, bidirectional merge).
 2. The bidirectional branchless merge in Lean, verified: the reverse-merge lemma `drop_merge_eq`,
    `mergeBidi_spec`, `mergeKernel`, `sort2` = 30–34 ms vs driftsort 19 (1M).
@@ -38,10 +38,12 @@ Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correc
 4. Adaptivity: the verified `isSortedFrom` / `isDescFrom` pre-checks and in-place reverse (`Adaptive.lean`,
    `sortAdaptive2`) make sorted and reversed inputs linear, like driftsort's run detection; `scanFrom` /
    `sortAdaptive3` fuse both checks into one verified scan (reversed 1M: 1.4 ms).
-5. What is left on the table: small-sort networks (`sort4_stable`/`sort8_stable` style, branchless
-   `swap_if_less`; measured +5% at 10M), natural-run detection for *partially* sorted inputs, the run
-   stack / powersort policy, and driftsort's stable-quicksort engine for unsorted runs (the real source of
-   its remaining 1.5× on random data). Each is a self-contained verification target.
+5. Natural runs: verified run detection (`FindRun.lean`) and the in-order merge fast path (`SkipMerge.lean`),
+   and the total prototype `NaturalRuns.lean` that beats driftsort on inputs with long runs (design below).
+6. What is left on the table: small-sort networks (`sort4_stable`/`sort8_stable` style, branchless
+   `swap_if_less`; measured +5% at 10M), the verified run stack / powersort policy, and driftsort's
+   stable-quicksort engine for unsorted runs (the real source of its remaining 1.5× on random data and of
+   its win on nearly sorted data). Each is a self-contained verification target.
 
 ### Part 3 design: a verified "driftsort-lite" (proposed build order for the next session)
 Where the remaining time goes on inputs that are not uniformly random (1M `u64`, ms):
@@ -60,7 +62,8 @@ built in this order, each step verified before the next:
 1. **Run detection** — DONE, verified: `FindRun.lean` (`ascEnd`, `descEnd`, `findRun`, `findRun_spec`: the
    slice `[lo, hi)` is sorted afterwards, a permutation of the original, frame outside).
 2. **Minimum run length**: runs shorter than 32 are extended with `insertionSortRange` (spec exists:
-   `insertionSortRange_spec`). This alone makes "8 sorted runs" and "sawtooth" linear-ish.
+   `insertionSortRange_spec`); extend only the tail `[hi, lo+minRun)` so the next natural run survives
+   (lesson (b) below). The prototype does this with insertion sort to 32.
 3. **Run stack + merge policy**: keep a stack of `(start, len)` of sorted runs (`Array (UInt64 × UInt64)`,
    boxed pairs are fine here: one entry per run, not per element). Invariant: the runs tile `[0, k)`,
    each run's slice is `Sorted`. Merge policy: powersort's node power, or the simpler "merge while the top
@@ -123,10 +126,7 @@ run stack 300, stable quicksort 500+.
 Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-notation loop 1010 / 13072.
 
 ## Files (lines / clean-build seconds)
-Simple 105 · UInt64Array 88 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 ·
-BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 ·
-SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 246 (6.4 s) ·
-Adaptive 420 (4 s) · Export 10. Total 2939 lines, ~55 s clean build.
+Simple 105 · UInt64Array 91 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 · BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 · SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 253 (6.4 s) · Adaptive 412 (4 s) · SkipMerge 128 · FindRun 157 · Export 10. Total 3224 lines, ~60 s clean build.
 
 ## Scaling (ms, random u64, same machine, one run each; 10M Lean varies 330–430 across runs)
 | n | Lean `sortBlocked` (verified) | Rust same algorithm | Rust plain merge sort | Rust driftsort |

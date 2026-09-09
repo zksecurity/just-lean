@@ -10,7 +10,10 @@
 - `ffi/` C demo: C fills a `lean_sarray`, calls the exported sort, gets the same buffer sorted in place.
 - `rust/` comparison programs (plain, same-trick, same-algorithm, driftsort).
 - `../site-smoke/` Verso skeleton (3 parts, docstring roles, an inline definition with `termination_by`,
-  checked `#eval` output, tactic proof states rendered, plain command blocks). Builds in ~1.5 min incl. Verso.
+  checked `#eval` output, tactic proof states rendered, plain command blocks; Part 3 now also renders the
+  `findRun` / `mergeKernelS` docstrings). Builds in ~1.5 min incl. Verso.
+- `NaturalRuns.lean` (`lake exe naturalruns N`): total natural-run merge sort prototype over the verified
+  kernels, with the input-shape benchmark (random / 8 runs / 1% swaps / sawtooth / reversed).
 - `README.md` (numbers, 10 lessons, TCB), `PLAN.md` (tutorial chapters).
 
 ## Numbers (ms, 1M / 10M random u64)
