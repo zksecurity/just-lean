@@ -3,6 +3,14 @@
 Everything here is total (no `partial`), has no `sorry`, and the correctness theorems depend only on
 `propext`, `Classical.choice`, `Quot.sound`. Lean `v4.33.1`.
 
+## What is trusted
+
+The theorems are about the *model* (`UInt64Array.data : Array UInt64`). The runtime representation is a
+`lean_sarray` of 8-byte elements, and the five `@[extern c inline]` snippets in `UInt64Array.lean`
+(`size`, `get`, `set`, `zeros`, plus the constructor/projection externs) are trusted to implement the
+model, exactly as core trusts its own `ByteArray`/`FloatArray` externs. Beyond that: Lean's kernel,
+compiler and runtime, and clang. `Sorted` is with respect to unsigned `≤` on `UInt64`.
+
 ## Files
 
 | file | what |
@@ -64,7 +72,7 @@ Scaling (`sortdemo`, verified `sortAdaptive2`, vs `Vec::sort`), ms:
 
 | n | Lean | driftsort |
 |---|---|---|
-| 1 k | 0.05 | 0.017 |
+| 1 k | 0.021 | 0.017 |
 | 10 k | 0.20 | 0.14 |
 | 100 k | 2.4 | 1.7 |
 | 1 M | 30 | 19 |

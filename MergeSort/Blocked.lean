@@ -29,13 +29,15 @@ def twoPasses (w lo hi : UInt64) (src dst : UInt64Array)
   let ⟨s, hs'⟩ := passLoop2 hi (2 * w) lo d src (hs := by rw [hd']; exact hd) (hw := by u64)
   ⟨(s, d), hs', hd'⟩
 
-/-- Sort the block `[lo, hi)` (of length at most `B`) with pairs of passes; result in `src`. -/
+/-- Sort the block `[lo, hi)` (of length at most `B`) with pairs of passes; result in `src`.
+    Passes stop as soon as one run covers the block, so small blocks do not pay for empty passes. -/
 def blockPasses (w B lo hi : UInt64) (src dst : UInt64Array)
     (hhi : hi.toNat < 2 ^ 62 := by u64) (hs : hi.toNat ≤ src.size := by u64) (hd : hi.toNat ≤ dst.size := by u64)
     (hssz : src.size < 2 ^ 64 := by u64) (hdsz : dst.size < 2 ^ 64 := by u64)
-    (hw : 1 ≤ w.toNat := by u64) (hB : B.toNat < 2 ^ 61 := by u64) : Pair src dst :=
-  if h : w < B then
-    have h : w.toNat < B.toNat := h
+    (hw : 1 ≤ w.toNat := by u64) (hB : B.toNat < 2 ^ 61 := by u64) (hlo : lo.toNat ≤ hi.toNat := by u64)
+    (hlen : hi.toNat - lo.toNat ≤ B.toNat := by u64) : Pair src dst :=
+  if h : w < hi - lo then
+    have h : w.toNat < hi.toNat - lo.toNat := by have := UInt64.lt_iff_toNat_lt.mp h; u64
     let r := twoPasses w lo hi src dst
     castPair (blockPasses (4 * w) B lo hi r.1.1 r.1.2 (hs := by rw [r.2.1]; exact hs) (hd := by rw [r.2.2]; exact hd)
       (hssz := by rw [r.2.1]; exact hssz) (hdsz := by rw [r.2.2]; exact hdsz) (hw := by u64)) r.2.1 r.2.2
@@ -53,7 +55,11 @@ def blocksLoop (B n lo : UInt64) (src dst : UInt64Array)
     let hi := if lo + B ≤ n then lo + B else n
     have hhi : hi.toNat ≤ n.toNat := by
       show (if lo + B ≤ n then lo + B else n).toNat ≤ _; split <;> u64
-    let r := blockPasses 1 B lo hi src dst
+    have hlo' : lo.toNat ≤ hi.toNat := by
+      show lo.toNat ≤ (if lo + B ≤ n then lo + B else n).toNat; split <;> u64
+    have hlen' : hi.toNat - lo.toNat ≤ B.toNat := by
+      show (if lo + B ≤ n then lo + B else n).toNat - lo.toNat ≤ B.toNat; split <;> u64
+    let r := blockPasses 1 B lo hi src dst (hlo := hlo') (hlen := hlen')
     castPair (blocksLoop B n (lo + B) r.1.1 r.1.2 (hs := by rw [r.2.1]; exact hs) (hd := by rw [r.2.2]; exact hd)
       (hssz := by rw [r.2.1]; exact hssz) (hdsz := by rw [r.2.2]; exact hdsz)) r.2.1 r.2.2
   else ⟨(src, dst), rfl, rfl⟩
@@ -97,32 +103,33 @@ theorem twoPasses_spec (w lo hi : UInt64) (src dst : UInt64Array) hhi hs hd hssz
   · rw [Q1]
     exact (mergeRuns_perm (by omega) (D.1.slice lo.toNat (hi.toNat - lo.toNat))).trans (by rw [P1]; exact mergeRuns_perm hw0 _)
 
-theorem blockPasses_spec (B lo hi : UInt64) (hlen : hi.toNat - lo.toNat ≤ B.toNat) :
-    ∀ (m : Nat) (w : UInt64) (src dst : UInt64Array) hhi hs hd hssz hdsz hw hB, m = B.toNat - w.toNat →
+theorem blockPasses_spec (B lo hi : UInt64) :
+    ∀ (m : Nat) (w : UInt64) (src dst : UInt64Array) hhi hs hd hssz hdsz hw hB hlo hlen, m = B.toNat - w.toNat →
     ChunkSorted w.toNat (by omega) (src.slice lo.toNat (hi.toNat - lo.toNat)) →
-    Sorted le64 ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
-    ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
+    Sorted le64 ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB hlo hlen).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB hlo hlen).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (src.slice lo.toNat (hi.toNat - lo.toNat)) ∧
-    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB).1.1.at' x = src.at' x := by
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) →
+      (blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB hlo hlen).1.1.at' x = src.at' x := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
-  intro w src dst hhi hs hd hssz hdsz hw hB hm hcs
+  intro w src dst hhi hs hd hssz hdsz hw hB hlo hlen hm hcs
   rw [blockPasses]
   dsimp only
   split
   · rename_i h
-    have h : w.toNat < B.toNat := h
+    have h : w.toNat < hi.toNat - lo.toNat := by have := UInt64.lt_iff_toNat_lt.mp h; u64
     have e4 : (4 * w).toNat = 4 * w.toNat := by u64g
     let S := twoPasses w lo hi src dst hhi hs hd hssz hdsz (by u64)
     obtain ⟨T1, T2, T3⟩ := twoPasses_spec w lo hi src dst hhi hs hd hssz hdsz (by u64) (by omega) hcs
     obtain ⟨IH1, IH2, IH3⟩ := ih (B.toNat - (4 * w).toNat) (by omega) (4 * w) S.1.1 S.1.2 hhi (by rw [S.2.1]; exact hs)
-      (by rw [S.2.2]; exact hd) (by rw [S.2.1]; exact hssz) (by rw [S.2.2]; exact hdsz) (by u64) hB rfl
+      (by rw [S.2.2]; exact hd) (by rw [S.2.1]; exact hssz) (by rw [S.2.2]; exact hdsz) (by u64) hB hlo hlen rfl
       (chunkSorted_congr e4.symm _ _ T1)
     simp only [castPair_val]
     exact ⟨IH1, IH2.trans T2, fun x hx => (IH3 x hx).trans (T3 x hx)⟩
   · rename_i h
-    have h : ¬ w.toNat < B.toNat := h
+    have h : ¬ w.toNat < hi.toNat - lo.toNat := fun c => h (UInt64.lt_iff_toNat_lt.mpr (by u64g))
     exact ⟨sorted_of_chunkSorted _ (by simp; omega) hcs, List.Perm.refl _, fun x _ => rfl⟩
 
 theorem blocksLoop_spec (B n : UInt64) (hB0 : 0 < B.toNat) :
@@ -151,9 +158,9 @@ theorem blocksLoop_spec (B n : UInt64) (hB0 : 0 < B.toNat) :
       · have hc' : ¬ (lo + B).toNat ≤ n.toNat := fun h => hc (UInt64.le_iff_toNat_le.mpr h)
         right; refine ⟨by omega, ?_⟩
         show (if lo + B ≤ n then lo + B else n).toNat = _; rw [if_neg hc]
-    let S := blockPasses 1 B lo HI src dst (by omega) (by omega) (by omega) hssz hdsz (by u64) (by omega)
-    obtain ⟨T1, T2, T3⟩ := blockPasses_spec B lo HI (by omega) (B.toNat - (1 : UInt64).toNat) 1 src dst (by omega) (by omega)
-      (by omega) hssz hdsz (by u64) (by omega) rfl (chunkSorted_congr (by simp) _ _ (chunkSorted_one _))
+    let S := blockPasses 1 B lo HI src dst (by omega) (by omega) (by omega) hssz hdsz (by u64) (by omega) (by omega) (by omega)
+    obtain ⟨T1, T2, T3⟩ := blockPasses_spec B lo HI (B.toNat - (1 : UInt64).toNat) 1 src dst (by omega) (by omega)
+      (by omega) hssz hdsz (by u64) (by omega) (by omega) (by omega) rfl (chunkSorted_congr (by simp) _ _ (chunkSorted_one _))
     obtain ⟨IH1, IH2, IH3⟩ := ih (n.toNat - (lo + B).toNat) (by omega) (lo + B) S.1.1 S.1.2 hn (by rw [S.2.1]; exact hs)
       (by rw [S.2.2]; exact hd) (by rw [S.2.1]; exact hssz) (by rw [S.2.2]; exact hdsz) hB rfl
     simp only [castPair_val]
