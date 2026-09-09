@@ -50,7 +50,7 @@ sawtooth of 1000: 30 / 28 / 23. The bottom-up sort is oblivious to input shape; 
 is its biggest lever on realistic data. Part 3 design in `PLAN.md` builds run detection first.
 (`msbench N random|runs8|swaps1|sawtooth`, `lab/rust`: `msort N <shape>`.)
 
-## Natural-run prototype (Part 3 steps 1–3, unverified glue over verified kernels; `NaturalRuns.lean`)
+## Natural-run prototype (Part 3 steps 1–3; `NaturalRuns.lean`: total, no `partial`, no `sorry`; run detection and every merge are the verified `findRun` / `mergeKernelS`, only the run-collection and level loops lack specs)
 1M ms, hybrid vs driftsort: random 30 vs 19 · 8 runs 5.5 vs 7.3 · sawtooth 16 vs 23 · reversed 2.1 vs 0.6 ·
 1% swaps 30–37 vs 14. All outputs exact. Details and lessons in `PLAN.md` (Part 3 design).
 

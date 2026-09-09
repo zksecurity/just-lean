@@ -8,7 +8,7 @@ import MergeSort.FindRun
 # Experiment (unverified prototype): natural-run merge sort ("driftsort-lite", Part 3 step 1–3)
 Detect maximal ascending / strictly descending runs (descending ones reversed in place), extend short
 runs to 32 with insertion sort, then merge adjacent runs level by level with the *verified* `mergeKernel`
-(bidirectional when the two runs have equal length). Run detection (`findRun`) and every merge (`mergeKernelS`) are verified; only the glue loops use `partial`.
+(bidirectional when the two runs have equal length). Run detection (`findRun`) and every merge (`mergeKernelS`) are verified; the glue loops are total too (`termination_by` on the scan position / number of runs), so nothing here is `partial`.
 -/
 open UInt64Array MergeSort MergeSort.BottomUp
 namespace NR
@@ -16,7 +16,7 @@ namespace NR
 /-- Collect run starts into `runs` (each run sorted in place); returns `(runs ++ [n], a, d)`.
     `useBlocks`: extend short runs with the verified cache-blocked bottom-up sort (`blockPasses`) on
     `[lo, lo + minRun)` instead of insertion sort; needs the scratch buffer `d`. -/
-partial def collectRunsB (useBlocks : Bool) (minRun n lo : UInt64) (a d : UInt64Array) (runs : Array UInt64)
+def collectRunsB (useBlocks : Bool) (minRun n lo : UInt64) (a d : UInt64Array) (runs : Array UInt64)
     (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) : Array UInt64 × UInt64Array × UInt64Array :=
   if h : lo < n then
     have h1 : lo.toNat < n.toNat := h
@@ -43,21 +43,33 @@ partial def collectRunsB (useBlocks : Bool) (minRun n lo : UInt64) (a d : UInt64
             (hi', (insertionSortRange lo hi' hi a h3.1 h3.2.1 h3.2.2).1, d)
           else (hi, a, d)
         else (hi, a, d)
-      if h5 : a.size < 2 ^ 64 ∧ n.toNat ≤ a.size then collectRunsB useBlocks minRun n hi a d runs h5.1 h5.2 else (runs.push n, a, d)
+      if h5 : a.size < 2 ^ 64 ∧ n.toNat ≤ a.size ∧ lo < hi then
+        have : lo.toNat < hi.toNat := h5.2.2
+        collectRunsB useBlocks minRun n hi a d runs h5.1 h5.2.1
+      else (runs.push n, a, d)
     else (runs.push n, a, d)
   else (runs.push n, a, d)
+termination_by n.toNat - lo.toNat
+decreasing_by u64
 
 /-- Count natural runs (ascending or strictly descending) without writing; read-only scan. -/
-partial def countRuns (n lo : UInt64) (a : @& UInt64Array) (acc limit : UInt64)
+def countRuns (n lo : UInt64) (a : @& UInt64Array) (acc limit : UInt64)
     (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) : UInt64 :=
   if h : lo < n ∧ acc ≤ limit then
     have h1 : lo.toNat < n.toNat := h.1
     if h4 : lo + 1 < n then
       have : lo.toNat + 1 < n.toNat := by have := UInt64.lt_iff_toNat_lt.mp h4; u64
-      let hi := if a.get (lo + 1) < a.get lo then (descEnd n (lo + 2) a hsz hn (by u64)).1 else (ascEnd n (lo + 2) a hsz hn (by u64)).1
+      have e2 : (lo + 2).toNat = lo.toNat + 2 := by u64
+      -- a `match` (not a `let`) so that the bound stays visible to the termination proof
+      let ⟨hi, hhi⟩ : { hi : UInt64 // lo.toNat < hi.toNat } :=
+        if a.get (lo + 1) < a.get lo then
+          ⟨(descEnd n (lo + 2) a hsz hn (by omega)).1, by have := (descEnd n (lo + 2) a hsz hn (by omega)).2; omega⟩
+        else ⟨(ascEnd n (lo + 2) a hsz hn (by omega)).1, by have := (ascEnd n (lo + 2) a hsz hn (by omega)).2; omega⟩
       countRuns n hi a (acc + 1) limit hsz hn
     else acc + 1
   else acc
+termination_by n.toNat - lo.toNat
+decreasing_by u64
 
 def collectRuns (minRun n lo : UInt64) (a : UInt64Array) (runs : Array UInt64)
     (hsz : a.size < 2 ^ 64) (hn : n.toNat ≤ a.size) : Array UInt64 × UInt64Array :=
@@ -92,13 +104,16 @@ def mergeLevel (runs : Array UInt64) (i : Nat) (src dst : UInt64Array) (out : Ar
   else (out, src, dst)
 termination_by runs.size - i
 
-partial def mergeAll (runs : Array UInt64) (src dst : UInt64Array) : UInt64Array :=
+def mergeAll (runs : Array UInt64) (src dst : UInt64Array) : UInt64Array :=
   if runs.size ≤ 2 then src
   else
     let (runs', src, dst) := mergeLevel runs 0 src dst (Array.mkEmpty (runs.size / 2 + 2))
     -- ensure the sentinel `n` is at the end
     let runs' := if runs'.size > 0 && runs'[runs'.size - 1]! == runs[runs.size - 1]! then runs' else runs'.push runs[runs.size - 1]!
-    mergeAll runs' dst src
+    -- the level halves the number of runs; the check makes termination structural
+    if h : runs'.size < runs.size then mergeAll runs' dst src else src
+termination_by runs.size
+decreasing_by all_goals first | exact h | (simp_wf; simpa using h)
 
 def sortNatural (minRun : UInt64) (xs : UInt64Array) : UInt64Array :=
   let n := xs.size.toUInt64

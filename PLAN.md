@@ -76,9 +76,9 @@ built in this order, each step verified before the next:
 5. **Small sorts**: `sort4_stable`/`sort8_stable` networks with branchless selects, then `insertionSortRange`
    from 8/4 upward; +5% at 10M measured. Proof: 5 comparators, `decide`-able on the abstract permutation.
 
-**Prototype (this session, `NaturalRuns.lean`, `lake exe naturalruns N`)**: steps 1–3 as an unverified prototype
-that calls only verified kernels (`mergeKernel`, `reverseRange`, `insertionSortRange`, `blockPasses`,
-`sortBlocked`); only the run scan is `partial`. Runs are merged level by level (adjacent pairs, bidirectional
+**Prototype (this session, `NaturalRuns.lean`, `lake exe naturalruns N`)**: steps 1–3 as a total (no `partial`)
+prototype whose run detection (`findRun`) and merges (`mergeKernelS`) are the verified kernels; only the
+run-collection loop and the level loop still lack specifications (the run stack of step 3). Runs are merged level by level (adjacent pairs, bidirectional
 when equal length), with a read-only run count first that bails out to `sortBlocked` when the average run
 is shorter than 32 (the scan costs 0.2–0.7 ms at 1M). Every output was checked against the reference.
 
