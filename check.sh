@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 lake build
-lake build msbench verifyall naturalruns
+lake build msbench verifyall naturalruns driftbench
 ./.lake/build/bin/verifyall
 cat > /tmp/mergesort_axioms.lean <<'LEAN'
 import MergeSort
@@ -36,4 +36,5 @@ LEAN
 lake env lean /tmp/mergesort_axioms.lean
 grep -rn "sorry" MergeSort/ MergeSort.lean && { echo "sorry found in the library"; exit 1; } || echo "no sorry in the library"
 ./.lake/build/bin/naturalruns verify
+./.lake/build/bin/driftbench verify
 ./.lake/build/bin/msbench "${1:-1000000}"

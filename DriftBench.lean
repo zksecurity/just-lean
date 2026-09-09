@@ -75,7 +75,9 @@ def phases (n : Nat) : IO Unit := do
   IO.println s!"phases on n = {n} random (cold / warm, same buffers threaded through):"
   let src := UInt64Array.ofArray xs
   let twice (label : String) (f : UInt64Array → UInt64Array → UInt64Array × UInt64Array) : IO Unit := do
-    let (t1, (v, s)) ← timeMs (fun _ => f (UInt64Array.ofArray xs) (UInt64Array.zeros n))
+    let v0 ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
+    let s0 ← IO.lazyPure (fun _ => UInt64Array.zeros n)
+    let (t1, (v, s)) ← timeMs (fun _ => f v0 s0)
     -- warm run: same (already touched) buffers, random data copied back in
     let v := Drift.copyRange src v 0 0 nn
     let (t2, _) ← timeMs (fun _ => f v s)
@@ -136,19 +138,19 @@ def sortedPhases (n : Nat) : IO Unit := do
   IO.println s!"sorted-input phases on n = {n}:"
   let (t, _) ← timeMs (fun _ => (UInt64Array.zeros n, UInt64Array.zeros 1))
   IO.println s!"  zeros n:                        {t} ms"
-  let v := UInt64Array.ofArray xs
+  let v ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
   let (t, r) ← timeMs (fun _ => let (rl, _) := Drift.findExistingRun v 0 nn; (UInt64Array.zeros rl.toNat, v))
   IO.println s!"  findExistingRun (sorted):       {t} ms (run length {r.1.size})"
-  let v := UInt64Array.ofArray xs
+  let v ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
   let (t, _) ← timeMs (fun _ => (Drift.reverseRange v 0 nn, UInt64Array.zeros 1))
   IO.println s!"  reverseRange whole array:       {t} ms"
-  let v := UInt64Array.ofArray xs
+  let v ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
   let (t, _) ← timeMs (fun _ => let (r, v, s) := Drift.createRun v (UInt64Array.zeros n) 0 nn 1000 false; (UInt64Array.zeros (Drift.runLen r).toNat, v))
   IO.println s!"  createRun (sorted, + zeros n):  {t} ms"
-  let v := UInt64Array.ofArray xs
+  let v ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
   let (t, _) ← timeMs (fun _ => Drift.driftSortFull v (UInt64Array.zeros n) 0 nn nn)
   IO.println s!"  driftSortFull (+ zeros n):      {t} ms"
-  let v := UInt64Array.ofArray xs
+  let v ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
   let (t, _) ← timeMs (fun _ => (Drift.sort v, UInt64Array.zeros 1))
   IO.println s!"  Drift.sort:                     {t} ms"
 
@@ -167,15 +169,15 @@ def main (args : List String) : IO Unit := do
     if only != "" && only != shape then continue
     let xs := shapeOf shape n (gen n 42)
     let ref := xs.qsort (· < ·)
-    IO.println s!"n = {n} shape = {shape}  (input handed over uniquely, like Rust's clone-before-timing)"
+    IO.println s!"n = {n} shape = {shape}  (input produced by an IO action before the clock, handed over uniquely)"
     for _ in [0:3] do
-      let us := UInt64Array.ofArray xs
+      let us ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
       let t0 ← IO.monoNanosNow
       let r ← IO.lazyPure (fun _ => Drift.sort us)
       let t1 ← IO.monoNanosNow
       IO.println s!"  driftsort port (Lean):  {(t1 - t0).toFloat / 1000000.0} ms [{if r.toArray == ref then "exact match" else "WRONG"}]"
     for _ in [0:2] do
-      let us := UInt64Array.ofArray xs
+      let us ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
       if h : us.size < 2 ^ 62 then
         let t0 ← IO.monoNanosNow
         let r ← IO.lazyPure (fun _ => BottomUp.sortBlocked us h)

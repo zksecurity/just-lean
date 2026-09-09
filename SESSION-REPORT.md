@@ -99,3 +99,42 @@ inlining the merge loop into the pass loop when both specialised copies land in 
 `@[noinline]` does not reach C). Rule: `@[specialize]` the kernel on the comparison, instantiate it in its own
 module, and pass the kernel to the (also specialised) pass loop. Type-class or function argument makes no
 difference; an unspecialised closure costs 7×.
+
+## Part 3: the unverified 1:1 driftsort port (`MergeSort/Drift.lean`, 16:xx CEST)
+A function-by-function port of `core::slice::sort::stable` for `u64` (run detection, powersort run stack with
+lazy logical runs, stable quicksort with pseudo-median pivots and equal-element partitions, the 32-element
+small sort with `sort8_stable` networks, the shorter-run-to-scratch physical merge, driftsort's scratch sizing).
+Total (no `partial`), no `sorry`; bounds are runtime-checked in the model but the hot accessors are unchecked
+externs for this lab measurement (`getU`/`setU`, `memcpy`/vectorised reverse copy, batched `set2`/`set4`).
+`driftbench verify`: 2472 sorts over 103 sizes × 3 seeds × 8 shapes, 0 mismatches (in `check.sh`).
+
+| 1M `u64`, ms | Lean port | Rust `Vec::sort` | ratio |
+|---|---|---|---|
+| random | 27.7 | 18.7 | 1.48 |
+| 8 sorted runs | 8.0 | 7.3 | 1.10 |
+| sorted + 1% swaps | 21.4 | 14.5 | 1.48 |
+| sawtooth (runs of 1000) | 24.0 | 22.7 | 1.06 |
+| reversed | 1.3 | 0.52 | 2.5 |
+| sorted | 0.99 | 0.38 | 2.6 |
+| 16 distinct values | 5.7 | 3.6 | 1.6 |
+| 1000 distinct values | 11.4 | 7.5 | 1.5 |
+| 10M random | 341 | 270 | 1.26 |
+
+How it got from 85 ms to 27.7 (random, 1M): unchecked accessors 85 → 53 (the bounds checks cost 32 ms; a
+verified version recovers them with proofs); the bidirectional merge returned a 6-tuple per call (five boxed
+`UInt64`s) → 40; `memcpy`/vectorised copy-back, the partition scan split at the pivot, scans returning one
+pair, `stablePartition` inlined → 31; batched stores `set2`/`set4` (one exclusivity check per 2–4 stores)
+brought the network and merge stages of the small sort to Rust parity → 30; the physical merge made
+branchless in the style of the verified merge loop (runs8 17.7 → 8.0, sawtooth 40 → 24).
+What is left (from warm per-phase measurements against a Rust copy of the same phases, `lab/rust-drift`):
+partition per level at parity (1.10 vs 1.03 ms), small sort 7.4 vs 6.7, insertion 1.3×; the remaining
+random-input gap is per-store exclusivity checks in the element loops and ~4 ms of control-path allocations
+(a pair per quicksort call and per small sort). Sorted/reversed inputs pay the 8 MB `zeros` scratch
+(Rust's scratch is allocated lazily and never touched on those inputs).
+
+Two harness lessons that also correct earlier numbers: (1) a `let` whose only use is inside the timed
+closure is floated into the closure by the compiler, so `ofArray` (7 ms) was being timed as part of the sort
+on some shapes; obtain inputs with `← IO.lazyPure` before the clock; (2) an input array still referenced by
+the harness is copied inside the timing by the first in-place write (2.5 ms at 1M, ~25 at 10M): Rust's
+harness clones before the clock, ours must hand the array over uniquely. Under the corrected protocol the
+verified `sortBlocked` is 27.8 ms (not 30) at 1M.

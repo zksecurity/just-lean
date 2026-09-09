@@ -63,7 +63,7 @@ def main (args : List String) : IO Unit := do
         i := i + 1000
       return out
     else xs0
-  let us := UInt64Array.ofArray xs
+  let us ← IO.lazyPure (fun _ => UInt64Array.ofArray xs)
   IO.println s!"n = {n} shape = {shape}"
   let t0 ← IO.monoNanosNow
   if h : us.size < 2 ^ 63 then

@@ -49,6 +49,17 @@ as a side project. Bidirectional merge, cache blocks and adaptivity are Part 3 m
    stable-quicksort engine for unsorted runs (the real source of its remaining 1.5× on random data and of
    its win on nearly sorted data). Each is a self-contained verification target.
 
+### Part 3, step 0 — DONE (unverified): the exact driftsort port, `MergeSort/Drift.lean`
+Decision (Gregor, 15:40): port the exact Rust driftsort first, unverified, then verify kernel by kernel.
+Status: ported 1:1 (see `SESSION-REPORT.md` for the table), correct on 2472 cross-checks, 27.7 ms vs Rust 18.7
+on random 1M (1.48×), 1.06–1.10× on inputs with runs, 1.26× at 10M. The port is total and `sorry`-free but
+uses unchecked extern accessors and batched stores as a lab measurement; the verified version replaces them
+by proof-carrying `get`/`set` (and a `set2`/`set4` with the same model), which is exactly the Part 2 recipe.
+Verification order (each piece already has a proof pattern in the repo): `sort4Stable`/`sort8Stable`
+(`Net4.lean`), `bidirectionalMerge` (`Bidi.lean`), `insertTail` (`SmallRunsCorrect.lean`), `merge`
+(`mergeLoop_spec` + the shorter-run copy), `stablePartition` (filter spec, new), `quicksort` (induction on
+length + limit), `findExistingRun`/`reverseRange` (`FindRun.lean`), the run stack (`RunsOK`, below).
+
 ### Part 3 design: a verified "driftsort-lite" (proposed build order for the next session)
 Where the remaining time goes on inputs that are not uniformly random (1M `u64`, ms):
 
