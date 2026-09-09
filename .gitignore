@@ -1,0 +1,4 @@
+.lake/
+rust/target/
+ffi/main
+*.o
