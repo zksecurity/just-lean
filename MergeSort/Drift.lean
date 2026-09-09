@@ -219,8 +219,10 @@ def mergeUp (v s : A) (start «end» dst right rightEnd : UInt64) : A × UInt64 
     let l := get! s start
     let r := get! v right
     let consumeLeft := !(lt r l)
-    let v := set! v dst (if consumeLeft then l else r)
-    mergeUp v s (start + (if consumeLeft then 1 else 0)) «end» (dst + 1) (right + (if consumeLeft then 0 else 1)) rightEnd
+    let di : UInt64 := if consumeLeft then 1 else 0
+    let x := if consumeLeft then l else r
+    let v := set! v dst x
+    mergeUp v s (start + di) «end» (dst + 1) (right + (1 - di)) rightEnd
   else (v, start, dst)
 termination_by («end».toNat - start.toNat) + (rightEnd.toNat - right.toNat)
 decreasing_by all_goals (split <;> u64)
@@ -239,10 +241,10 @@ def mergeDown (v s : A) (leftEnd dst «end» out : UInt64) : A × UInt64 × UInt
     let lv := get! v left
     let rv := get! s right
     let consumeLeft := lt rv lv
-    let v := set! v out (if consumeLeft then lv else rv)
-    let dst := if consumeLeft then left else dst
-    let «end» := if consumeLeft then «end» else right
-    mergeDown v s leftEnd dst «end» out
+    let di : UInt64 := if consumeLeft then 1 else 0
+    let x := if consumeLeft then lv else rv
+    let v := set! v out x
+    mergeDown v s leftEnd (dst - di) («end» - (1 - di)) out
   else (v, dst, «end»)
 termination_by (dst.toNat - leftEnd.toNat) + «end».toNat
 decreasing_by all_goals (split <;> u64)
@@ -298,7 +300,7 @@ def choosePivot (v : @& A) (lo hi : UInt64) : UInt64 :=
 /-! ## quicksort.rs -/
 
 /-- The scan of `stable_partition` over `v[i, hi)` with `x < pivot` going left (no pivot inside the range). -/
-def partitionScanLt (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) : A × UInt64 × UInt64 :=
+def partitionScanLt (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) : A × UInt64 :=
   if h : i < hi then
     have h' : i.toNat < hi.toNat := h
     have hb := UInt64.toNat_lt hi
@@ -308,12 +310,12 @@ def partitionScanLt (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) 
     let dst := (if towardsLeft then 0 else scratchRev) + numLeft
     let s := set! s dst x
     partitionScanLt v s (i + 1) hi pivot (numLeft + (if towardsLeft then 1 else 0)) scratchRev
-  else (s, numLeft, scratchRev)
+  else (s, numLeft)
 termination_by hi.toNat - i.toNat
 decreasing_by u64
 
 /-- Same with `x ≤ pivot` going left (the equal-partition comparator `!is_less(pivot, x)`). -/
-def partitionScanLe (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) : A × UInt64 × UInt64 :=
+def partitionScanLe (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) : A × UInt64 :=
   if h : i < hi then
     have h' : i.toNat < hi.toNat := h
     have hb := UInt64.toNat_lt hi
@@ -323,29 +325,22 @@ def partitionScanLe (v : @& A) (s : A) (i hi pivot numLeft scratchRev : UInt64) 
     let dst := (if towardsLeft then 0 else scratchRev) + numLeft
     let s := set! s dst x
     partitionScanLe v s (i + 1) hi pivot (numLeft + (if towardsLeft then 1 else 0)) scratchRev
-  else (s, numLeft, scratchRev)
+  else (s, numLeft)
 termination_by hi.toNat - i.toNat
 decreasing_by u64
 
-/-- `partition_one` for the pivot itself. -/
-@[inline] def partitionPivot (s : A) (x numLeft scratchRev : UInt64) (towardsLeft : Bool) : A × UInt64 × UInt64 :=
-  let scratchRev := scratchRev - 1
-  let dst := (if towardsLeft then 0 else scratchRev) + numLeft
-  (set! s dst x, numLeft + (if towardsLeft then 1 else 0), scratchRev)
-
-/-- The whole scan: `[lo, pivotPos)`, the pivot, `(pivotPos, hi)`, like Rust's two `loop_end_pos` rounds. -/
+/-- The whole scan: `[lo, pivotPos)`, the pivot, `(pivotPos, hi)`, like Rust's two `loop_end_pos` rounds.
+    `scratchRev` after a scan is arithmetic (one decrement per element), so the scans return one pair. -/
 def partitionScan (v : @& A) (s : A) (lo hi pivotPos pivot : UInt64) (pivotGoesLeft eqMode : Bool) : A × UInt64 :=
   let len := hi - lo
-  if eqMode then
-    let (s, nl, sr) := partitionScanLe v s lo pivotPos pivot 0 len
-    let (s, nl, sr) := partitionPivot s pivot nl sr pivotGoesLeft
-    let (s, nl, _) := partitionScanLe v s (pivotPos + 1) hi pivot nl sr
-    (s, nl)
-  else
-    let (s, nl, sr) := partitionScanLt v s lo pivotPos pivot 0 len
-    let (s, nl, sr) := partitionPivot s pivot nl sr pivotGoesLeft
-    let (s, nl, _) := partitionScanLt v s (pivotPos + 1) hi pivot nl sr
-    (s, nl)
+  let sr1 := len - (pivotPos - lo)          -- after scanning [lo, pivotPos)
+  let (s, nl) := if eqMode then partitionScanLe v s lo pivotPos pivot 0 len else partitionScanLt v s lo pivotPos pivot 0 len
+  -- the pivot
+  let sr2 := sr1 - 1
+  let dst := (if pivotGoesLeft then 0 else sr2) + nl
+  let s := set! s dst pivot
+  let nl := nl + (if pivotGoesLeft then 1 else 0)
+  if eqMode then partitionScanLe v s (pivotPos + 1) hi pivot nl sr2 else partitionScanLt v s (pivotPos + 1) hi pivot nl sr2
 
 def copyRangeRevLoop (src : @& A) (dst : A) (sIdx dIdx n : UInt64) : A :=
   if h : 0 < n then copyRangeRevLoop src (set! dst dIdx (get! src sIdx)) (sIdx - 1) (dIdx + 1) (n - 1) else dst
@@ -357,7 +352,7 @@ decreasing_by u64
 def copyRangeRev (src : @& A) (dst : A) (sIdx dIdx n : UInt64) : A := copyRangeRevLoop src dst sIdx dIdx n
 
 /-- `stable_partition` of `v[lo, hi)` around `v[pivotPos]`; returns the number of left elements. -/
-def stablePartition (v s : A) (lo hi pivotPos : UInt64) (pivotGoesLeft eqMode : Bool) : UInt64 × A × A :=
+@[inline] def stablePartition (v s : A) (lo hi pivotPos : UInt64) (pivotGoesLeft eqMode : Bool) : UInt64 × A × A :=
   let len := hi - lo
   let pivot := get! v pivotPos
   let (s, numLeft) := partitionScan v s lo hi pivotPos pivot pivotGoesLeft eqMode

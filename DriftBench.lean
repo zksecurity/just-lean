@@ -130,7 +130,30 @@ def pairLoop (v s : UInt64Array) (fuel : Nat) : UInt64Array × UInt64Array :=
   | 0 => (v, s)
   | f + 1 => let (v, s) := pairId v s; pairLoop v s f
 
+def sortedPhases (n : Nat) : IO Unit := do
+  let xs := (gen n 42).qsort (· < ·)
+  let nn := n.toUInt64
+  IO.println s!"sorted-input phases on n = {n}:"
+  let (t, _) ← timeMs (fun _ => (UInt64Array.zeros n, UInt64Array.zeros 1))
+  IO.println s!"  zeros n:                        {t} ms"
+  let v := UInt64Array.ofArray xs
+  let (t, r) ← timeMs (fun _ => let (rl, _) := Drift.findExistingRun v 0 nn; (UInt64Array.zeros rl.toNat, v))
+  IO.println s!"  findExistingRun (sorted):       {t} ms (run length {r.1.size})"
+  let v := UInt64Array.ofArray xs
+  let (t, _) ← timeMs (fun _ => (Drift.reverseRange v 0 nn, UInt64Array.zeros 1))
+  IO.println s!"  reverseRange whole array:       {t} ms"
+  let v := UInt64Array.ofArray xs
+  let (t, _) ← timeMs (fun _ => let (r, v, s) := Drift.createRun v (UInt64Array.zeros n) 0 nn 1000 false; (UInt64Array.zeros (Drift.runLen r).toNat, v))
+  IO.println s!"  createRun (sorted, + zeros n):  {t} ms"
+  let v := UInt64Array.ofArray xs
+  let (t, _) ← timeMs (fun _ => Drift.driftSortFull v (UInt64Array.zeros n) 0 nn nn)
+  IO.println s!"  driftSortFull (+ zeros n):      {t} ms"
+  let v := UInt64Array.ofArray xs
+  let (t, _) ← timeMs (fun _ => (Drift.sort v, UInt64Array.zeros 1))
+  IO.println s!"  Drift.sort:                     {t} ms"
+
 def main (args : List String) : IO Unit := do
+  if args.contains "sortedphases" then sortedPhases ((args.head? >>= String.toNat?).getD 1000000); return
   if args.contains "pairs" then
     let n := 31250
     let (t, _) ← timeMs (fun _ => pairLoop (UInt64Array.zeros 8) (UInt64Array.zeros 8) n)
