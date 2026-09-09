@@ -155,4 +155,24 @@ theorem sort8_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
       · rw [R, slice_four]; exact net4_perm _ _ _ _
     rwa [← M] at P
 
+
+/-- `sort8` returning both buffers (the caller must not keep its own reference to `src`, otherwise the
+    in-place networks copy the whole array: threading the pair is what makes it linear). -/
+def sort8P (lo : UInt64) (src dst : UInt64Array) (hssz : src.size < 2 ^ 64 := by u64) (hdsz : dst.size < 2 ^ 64 := by u64)
+    (hs : lo.toNat + 8 ≤ src.size := by u64) (hd : lo.toNat + 8 ≤ dst.size := by u64) :
+    { p : UInt64Array × UInt64Array // p.1.size = src.size ∧ p.2.size = dst.size } :=
+  have e4 : (lo + 4).toNat = lo.toNat + 4 := by u64
+  have e8 : (lo + 8).toNat = lo.toNat + 8 := by u64
+  let r1 := sort4 lo src
+  let r2 := sort4 (lo + 4) r1.1 (by rw [r1.2]; exact hssz) (by rw [r1.2]; omega)
+  let m := mergeKernel lo (lo + 4) (lo + 8) r2.1 dst hdsz (by rw [r2.2, r1.2]; omega) (by omega) (by omega) (by omega)
+  ⟨(r2.1, m.1), r2.2.trans r1.2, m.2⟩
+
+theorem sort8P_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
+    Sorted le64 ((sort8P lo src dst hssz hdsz hs hd).1.2.slice lo.toNat 8) ∧
+    ((sort8P lo src dst hssz hdsz hs hd).1.2.slice lo.toNat 8).Perm (src.slice lo.toNat 8) ∧
+    ∀ x, (x < lo.toNat ∨ lo.toNat + 8 ≤ x) → (sort8P lo src dst hssz hdsz hs hd).1.2.at' x = dst.at' x := by
+  have := sort8_spec lo src dst hssz hdsz hs hd
+  exact this
+
 end MergeSort.BottomUp

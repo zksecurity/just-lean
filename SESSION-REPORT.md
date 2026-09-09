@@ -1,7 +1,7 @@
 # Session report — 2026-09-09 (10:00–15:00 CET grind on "bullet 2")
 
 ## Deliverables (all in `~/code/lean-just-lean/`)
-- `verified/` — Lean 4.33.1 project, 3.3k lines, 24 verified results (18 sort theorems + `mergeKernelS_spec` + `findRun_spec` + `net4_sorted`/`net4_perm` + `sort4_spec` + `sort8_spec`) on standard axioms, no `sorry`, zero linter
+- `verified/` — Lean 4.33.1 project, 3.3k lines, 25 verified results (18 sort theorems + `mergeKernelS_spec` + `findRun_spec` + `net4_sorted`/`net4_perm` + `sort4_spec` + `sort8_spec`/`sort8P_spec`) on standard axioms, no `sorry`, zero linter
   warnings; `check.sh` builds, cross-checks all sorts on 37 sizes × 3 seeds × 4 input shapes, prints axioms,
   benchmarks. Also builds unchanged on 4.33.0 (`verified-4330/`).
 - Verified sorts: `Fast.sort` (top-down, `sort_toList` = exactly Part 1's `mergeSort`), `BottomUp.sort`,
@@ -79,3 +79,7 @@ A 5-comparator sorting network on four values built from branchless `mn`/`mx` se
 `sort4` applies it in place to `a[lo..lo+4)` (`sort4_spec`: slice = `net4`, frame outside). This is the shape of driftsort's `sort4_stable`; `sort8` = two of these + the verified (bidirectional) `mergeKernel`,
 exactly driftsort's `sort8_stable`, with `sort8_spec` (sorted, permutation, frame) composed from `sort4_spec`,
 `net4_sorted`/`net4_perm` and `mergeKernel_spec` in 40 lines. Part 3 step 5 (small sorts) is therefore verified.
+Measured as a run former over 1M elements (`msbench`, "run former" lines): verified `sort8P` on all blocks of 8 = 4.7 ms
+vs verified insertion sort on blocks of 8 = 6.9 ms. Pitfall found on the way (worth a tutorial paragraph): a loop
+that keeps its own reference to `src` while `sort8` sorts `src` in place makes every block copy the whole array
+(24 000 ms instead of 4.7 ms); returning both buffers as a pair (`sort8P`) fixes it, exactly like `Blocked.lean`.

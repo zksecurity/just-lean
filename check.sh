@@ -31,6 +31,7 @@ import MergeSort
 #print axioms MergeSort.BottomUp.net4_perm
 #print axioms MergeSort.BottomUp.sort4_spec
 #print axioms MergeSort.BottomUp.sort8_spec
+#print axioms MergeSort.BottomUp.sort8P_spec
 LEAN
 lake env lean /tmp/mergesort_axioms.lean
 grep -rn "sorry" MergeSort/ MergeSort.lean && { echo "sorry found in the library"; exit 1; } || echo "no sorry in the library"

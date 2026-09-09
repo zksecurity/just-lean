@@ -4,7 +4,22 @@ import MergeSort.SmallRuns
 import MergeSort.BidiSort
 import MergeSort.Blocked
 import MergeSort.Adaptive
+import MergeSort.Net4
+import MergeSort.SmallRuns
 open MergeSort
+
+/-- Run former: verified `sort8P` on every full block of 8, threading both buffers (timing only;
+    the tail is left as is). -/
+def sort8All (n lo : UInt64) (src dst : UInt64Array) (hssz : src.size < 2 ^ 64) (hdsz : dst.size < 2 ^ 64)
+    (hs : n.toNat ≤ src.size) (hd : n.toNat ≤ dst.size) : UInt64Array :=
+  if h : lo < n ∧ 8 ≤ n - lo then
+    have h2 : lo.toNat < n.toNat := h.1
+    have h1 : lo.toNat + 8 ≤ n.toNat := by have := UInt64.le_iff_toNat_le.mp h.2; u64
+    let r := BottomUp.sort8P lo src dst hssz hdsz (by omega) (by omega)
+    sort8All n (lo + 8) r.1.1 r.1.2 (by rw [r.2.1]; exact hssz) (by rw [r.2.2]; exact hdsz) (by rw [r.2.1]; exact hs) (by rw [r.2.2]; exact hd)
+  else dst
+termination_by n.toNat - lo.toNat
+decreasing_by u64
 
 def gen (n : Nat) (seed : UInt64) : Array UInt64 := Id.run do
   let mut s := seed
@@ -57,6 +72,16 @@ def main (args : List String) : IO Unit := do
   IO.println s!"Fast.sort (total, proof-carrying): {(t1 - t0).toFloat / 1000000.0} ms [{if out == ref then "exact match" else "WRONG"}]"
   else IO.println "too big"
   if h : us.size < 2 ^ 62 then
+    let t0 ← IO.monoNanosNow
+    have hn : us.size.toUInt64.toNat = us.size := by simp; omega
+    let r8 ← IO.lazyPure (fun _ => sort8All us.size.toUInt64 0 us (UInt64Array.zeros us.size) (by omega) (by simp; omega) (by rw [hn]; omega) (by rw [hn, UInt64Array.size_zeros]; omega))
+    let t1 ← IO.monoNanosNow
+    IO.println s!"run former: verified sort8 on all blocks of 8: {(t1 - t0).toFloat / 1000000.0} ms [size {r8.size}]"
+    if h8 : 8 < us.size then
+      let t0 ← IO.monoNanosNow
+      let ri ← IO.lazyPure (fun _ => BottomUp.sortBlocks us.size.toUInt64 8 0 us (by omega) (by rw [hn]; omega) (by rw [hn]; omega) (by rw [hn]; simp; omega))
+      let t1 ← IO.monoNanosNow
+      IO.println s!"run former: verified insertion sort on blocks of 8: {(t1 - t0).toFloat / 1000000.0} ms [size {ri.1.size}]"
     let t0 ← IO.monoNanosNow
     let r ← IO.lazyPure (fun _ => BottomUp.sort us h)
     let t1 ← IO.monoNanosNow
