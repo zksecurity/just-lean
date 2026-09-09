@@ -46,6 +46,11 @@ def shapeOf (shape : String) (n : Nat) (xs0 : Array UInt64) : Array UInt64 :=
 
 def shapes : List String := ["random", "runs8", "swaps1", "sawtooth", "reversed", "sorted", "dups", "dups1000"]
 
+/-- the bounds-safe sort as a plain function (the dependent `if` inside the loop body times out the elaborator) -/
+def safeSort (xs : Array UInt64) : Array UInt64 :=
+  let u := UInt64Array.ofArray xs
+  if h : u.size < 2 ^ 62 then (DriftSort.sort u h).toArray else #[]
+
 def verifyAll : IO Unit := do
   let sizes : List Nat := (List.range 80) ++ [100, 127, 128, 129, 255, 256, 257, 500, 1000, 1023, 1024, 1025, 4095, 4096, 4097, 5000,
     10000, 16383, 16384, 16385, 65536, 100000, 200000]
@@ -61,13 +66,10 @@ def verifyAll : IO Unit := do
         if r != ref then
           bad := bad + 1
           if bad ≤ 10 then IO.println s!"MISMATCH n={n} seed={seed} shape={shape}"
-        let u := UInt64Array.ofArray xs
-        if h : u.size < 2 ^ 62 then
-          count := count + 1
-          let r2 := (DriftSort.sort u h).toArray
-          if r2 != ref then
-            bad := bad + 1
-            if bad ≤ 10 then IO.println s!"MISMATCH (bounds-safe) n={n} seed={seed} shape={shape}"
+        count := count + 1
+        if safeSort xs != ref then
+          bad := bad + 1
+          if bad ≤ 10 then IO.println s!"MISMATCH (bounds-safe) n={n} seed={seed} shape={shape}"
   IO.println s!"driftsort port verify: {count} sorts over {sizes.length} sizes x 3 seeds x {shapes.length} shapes; mismatches: {bad}"
 
 def timeMs (f : Unit → UInt64Array × UInt64Array) : IO (Float × UInt64Array × UInt64Array) := do
