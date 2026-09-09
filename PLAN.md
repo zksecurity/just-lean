@@ -1,6 +1,6 @@
 # Tutorial plan v2 (after the 2026-09-09 grind)
 
-Site: Verso `Manual` genre, Lean `v4.33.0` (smoke-tested: `../site-smoke` builds and renders docstrings and checked `#eval` output from this project), every Lean snippet elaborated at build time (hovers, proof
+Site: Verso `Manual` genre, Lean `v4.33.0` (skeleton with the three parts exists in `../site-smoke`; smoke-tested: `../site-smoke` builds and renders docstrings and checked `#eval` output from this project), every Lean snippet elaborated at build time (hovers, proof
 states). No WASM. Bash snippets for the commands. One public repo = this project.
 
 ## Part 1 — Merge sort in Lean, and a proof that it sorts  (`MergeSort/Simple.lean`)
