@@ -25,8 +25,10 @@ states). No WASM. Bash snippets for the commands. One public repo = this project
 9. Calling it from C with zero copies (`Export.lean`, `ffi/`), static binary.
 10. Side note: `Std.Do`/`mvcgen` and when `do`-loops are fine (one mutable value) vs not.
 
-Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correct.lean`) whose theorem
-`sort_toList` says it computes *exactly* Part 1's `mergeSort` — the cleanest refinement story, 30% slower.
+Decision (2026-09-09, 15:05): Part 2's sort is `BottomUp.sort` (`BottomUp.lean` + `BottomUpMerge.lean`),
+with the branchless select in the main text. The top-down version gets one sentence ("a recursive variant
+exists in the repo and is 30% slower") and no theorem pointer; `Fast.lean`/`Correct.lean` stay in the repo
+as a side project. Bidirectional merge, cache blocks and adaptivity are Part 3 material.
 
 ## Part 3 — Advanced: toward `Vec::sort`  (`MergeBack.lean`, `Bidi.lean`, `BidiSort.lean`, `Blocked.lean`, `Adaptive.lean`, `SkipMerge.lean`, `FindRun.lean`, prototype `NaturalRuns.lean`)
 1. How driftsort works (run detection, small-sort networks, lazy powersort merges, bidirectional merge).
