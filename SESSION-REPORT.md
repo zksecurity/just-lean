@@ -138,3 +138,30 @@ on some shapes; obtain inputs with `← IO.lazyPure` before the clock; (2) an in
 the harness is copied inside the timing by the first in-place write (2.5 ms at 1M, ~25 at 10M): Rust's
 harness clones before the clock, ours must hand the array over uniquely. Under the corrected protocol the
 verified `sortBlocked` is 27.8 ms (not 30) at 1M.
+
+## Night of Sept 9/10: the driftsort is verified
+`MergeSort/DriftSort.lean` (bounds-safe port, 535 lines), `DriftCorrect.lean` (kernels: small sort, physical
+merge, stable partition; 620 lines) and `DriftCorrectLoop.lean` (run creation, logical merge, run stack, the
+quicksort with its ancestor-pivot precondition, entry point; 780 lines). Headline theorems:
+`DriftSort.sort_sorted` and `DriftSort.sort_perm`, on `propext`, `Classical.choice`, `Quot.sound` only, no
+`sorry`, no `partial`. Every loop has a slice-level spec with a frame clause; the run stack is proved with a
+tiling invariant `RunsOK` over the list of runs (top first) and a generic `QuickSpec` for the range sorter,
+so the eager fallback (insertion sort, never executed) and the stable quicksort share one loop proof.
+Deviations from Rust, all invisible for `u64`: the 4-element network is wired differently (same output),
+the small sort's odd-length final merge is one-sided, the physical merge goes through the scratch buffer
+and back, the scratch has the size of the input, the run stack is a list, the pivot position is not
+special-cased in the partition, and the final "is the collapsed run the whole range" check is a runtime test
+instead of a stack invariant. Speed of the bounds-safe version at 1M (input handed over uniquely):
+random 41 ms (lab port 28, Rust 19), 8 runs 5.6, sorted 1.0, 16 distinct values 9.3; the difference to the
+lab port is the absence of batched stores and of the `memcpy`/vectorised copies (next step: the same C as
+proof-carrying primitives with the loop as model).
+Proof-engineering lessons of the night: (1) a `have h : … := h` that shadows the guard with its `Nat` form
+breaks `simp` on the unfolded definition (auxiliary proof lemmas expect the other type); derive it under a
+new name. (2) A `let`-bound length inside `omega` goals is a separate atom; state facts after the `let`
+and in terms of it. (3) `generalize … at *` over a large goal times out; generalize the goal only and derive
+each stage's facts by rewriting the small equation into a freshly stated fact. (4) Nested tuple patterns
+`let ⟨(a, b), h⟩ := …` leave an unreduced `match` in the goal; generalize the scrutinee and `rcases` it to
+make the match reduce. (5) `simp` cannot rewrite the index of `set` (the bounds proof depends on it); apply
+the induction hypothesis to the goal's own terms and evaluate conditionals only in proof-free side goals.
+(6) Bookkeeping proofs after a well-founded recursive call must not let the kernel look into the call
+(`simpa` did, causing "deep recursion"); use explicit lemma applications.

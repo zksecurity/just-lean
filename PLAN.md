@@ -49,6 +49,12 @@ as a side project. Bidirectional merge, cache blocks and adaptivity are Part 3 m
    stable-quicksort engine for unsorted runs (the real source of its remaining 1.5× on random data and of
    its win on nearly sorted data). Each is a self-contained verification target.
 
+### Part 3 — DONE, VERIFIED (night of Sept 9/10): `DriftSort.lean` + `DriftCorrect.lean` + `DriftCorrectLoop.lean`
+`DriftSort.sort_sorted` / `DriftSort.sort_perm` on standard axioms. The verification order below was followed
+kernel by kernel; the run stack uses the `RunsOK` invariant (not the `RunsOK`/`mergeLevel` statement drafted
+earlier, which was for the natural-run prototype). Remaining for Part 3: speed of the bounds-safe version
+(batched stores, `memcpy` copies as proof-carrying primitives), then the chapter text.
+
 ### Part 3, step 0 — DONE (unverified): the exact driftsort port, `MergeSort/Drift.lean`
 Decision (Gregor, 15:40): port the exact Rust driftsort first, unverified, then verify kernel by kernel.
 Status: ported 1:1 (see `SESSION-REPORT.md` for the table), correct on 2472 cross-checks, 27.7 ms vs Rust 18.7
