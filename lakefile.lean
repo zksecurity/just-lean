@@ -22,3 +22,6 @@ lean_exe naturalruns where
 
 lean_exe genericbench where
   root := `GenericBench
+
+lean_exe driftbench where
+  root := `DriftBench

@@ -21,4 +21,5 @@ import MergeSort.FindRun
 import MergeSort.Net4
 import MergeSort.Generic
 import MergeSort.GenericU64
+import MergeSort.Drift
 import MergeSort.Adaptive
