@@ -73,11 +73,29 @@ built in this order, each step verified before the next:
    The merge itself is `mergeKernelS` (`SkipMerge.lean`, verified: bidirectional when the runs are equal,
    one-sided otherwise, a plain copy when the runs are already in order) into the scratch buffer, with a
    ping-pong that alternates buffers per merge level (as in the prototype).
-4. **Unsorted runs**: driftsort sorts them with a stable quicksort; a verified in-place stable quicksort is
-   the largest single proof (partition permutes and preserves order among equals). The bottom-up
-   `sortBlocked` on the run is a correct stand-in first (spec exists) and keeps random inputs at 30 ms.
-5. **Small sorts**: `sort4_stable`/`sort8_stable` networks with branchless selects, then `insertionSortRange`
-   from 8/4 upward; +5% at 10M measured. Proof: 5 comparators, `decide`-able on the abstract permutation.
+4. **Unsorted runs**: driftsort sorts them with a stable quicksort (`lab/driftsort-src/quicksort.rs`): the
+   partition is *out of place* into the scratch buffer (left part written forward from the scratch start,
+   right part written backward from the scratch end, 4× unrolled and branchless via `partition_one`), then
+   copied back (left part forward, right part reversed); recursion depth limited to `2·log2(n)`, after
+   which it falls back to the merge path; below `small_sort_threshold` (32 for `u64`) it calls the small
+   sort. A verified version is therefore "partition into scratch + copy back", the same shape as our
+   `mergeLoop`/`copyRange` specs (out-of-place, no in-place swaps): the spec is
+   `dst.slice = filter (< p) ++ [p] ++ filter (≥ p)` of the source slice (stability = filter keeps order),
+   which is a list lemma, plus the same frame clauses. Estimated 400–500 lines. The bottom-up `sortBlocked`
+   on the run is a correct stand-in first (spec exists) and keeps random inputs at 30 ms.
+5. **Small sorts** (`lab/driftsort-src/smallsort.rs`, the stable variant used by driftsort for `u64`,
+   `small_sort_general_with_scratch`, threshold 32): sort both halves of a ≤32-element slice with
+   `sort8_stable` (a 19-comparator network built from two `sort4_stable` + a bidirectional 4+4 merge,
+   all `swap_if_less` selects) into scratch, extend each half with insertion (`insert_tail`), then one
+   `bidirectional_merge` of the two halves back into place. The unstable variant (`ipnsort`) uses
+   `sort9_optimal`/`sort13_optimal` networks. Verified version: `sort4_stable` and `sort8_stable` as
+   straight-line code over `get`/`set` with a `decide`d correctness lemma on the 8-element list (the merge
+   step is `mergeBidi_spec` on runs of length 4). Measured +5% at 10M with an unverified `net8`.
+
+Also from `merge.rs`: driftsort's physical merge copies the *shorter* run to scratch and merges it
+forward (if it is the left run) or backward (if it is the right run) directly into `v`, so it needs only
+`min(left, right)` scratch and its scratch buffer is `n/2` overall, versus our two full buffers (`n` scratch);
+this is where Rust's 119 MB vs our 167 MB at 10M comes from.
 
 **Prototype (this session, `NaturalRuns.lean`, `lake exe naturalruns N`)**: steps 1–3 as a total (no `partial`)
 prototype whose run detection (`findRun`) and merges (`mergeKernelS`) are the verified kernels; only the
