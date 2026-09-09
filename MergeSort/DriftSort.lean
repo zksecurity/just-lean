@@ -312,17 +312,17 @@ def createRun (v s : A) (lo hi minGood : UInt64) (eager : Bool)
   have hlen : len.toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (by u64)
   if minGood ≤ len then
     let ⟨(e, v1), he1, he2, hv1⟩ := findRun lo hi v hvsz hv hlo
-    have he1 : lo.toNat < e.toNat := he1
-    have he2 : e.toNat ≤ hi.toNat := he2
-    have hv1 : v1.size = v.size := hv1
+    have he1' : lo.toNat < e.toNat := he1
+    have he2' : e.toNat ≤ hi.toNat := he2
+    have hv1' : v1.size = v.size := hv1
     have ee : (e - lo).toNat = e.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by omega))
     if h : minGood ≤ e - lo then
-      have h := UInt64.le_iff_toNat_le.mp h
-      ⟨(mkSorted (e - lo), v1, s), hv1, rfl, by show 0 < (e - lo).toNat; rw [ee]; omega,
+      have h' := UInt64.le_iff_toNat_le.mp h
+      ⟨(mkSorted (e - lo), v1, s), hv1', rfl, by show 0 < (e - lo).toNat; rw [ee]; omega,
         by show lo.toNat + (e - lo).toNat ≤ hi.toNat; rw [ee]; omega⟩
     else
-      let ⟨r, hr1, hr2, hr3, hr4⟩ := createRunRest v1 s lo hi minGood eager (by rw [hv1]; exact hv) hs (by rw [hv1]; exact hvsz) hssz hlo hmg
-      ⟨r, hr1.trans hv1, hr2, hr3, hr4⟩
+      let ⟨r, hr1, hr2, hr3, hr4⟩ := createRunRest v1 s lo hi minGood eager (by rw [hv1']; exact hv) hs (by rw [hv1']; exact hvsz) hssz hlo hmg
+      ⟨r, hr1.trans hv1', hr2, hr3, hr4⟩
   else createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg
 
 /-- `logical_merge` of the adjacent runs `v[lo, mid)` (sorted iff `lsorted`) and `v[mid, hi)`:
@@ -392,39 +392,39 @@ def stackSum (st : Stack) : Nat := (st.map (fun e => e.1.len.toNat)).sum
     (hscan : scanIdx.toNat ≤ len.toNat) (hsum : stackSum st + prevRun.len.toNat = scanIdx.toNat) : VS v s :=
   have hbnd := UInt64.toNat_lt len
   if h : scanIdx < len then
-    have h : scanIdx.toNat < len.toNat := h
+    have hlt : scanIdx.toNat < len.toNat := UInt64.lt_iff_toNat_lt.mp h
     have es : (lo + scanIdx).toNat = lo.toNat + scanIdx.toNat := toNat_add_of_lt _ _ (by omega)
     have el : (lo + len).toNat = lo.toNat + len.toNat := toNat_add_of_lt _ _ (by omega)
     let ⟨(nextRun, v1, s1), hv1, hs1, hpos, hle⟩ := createRun v s (lo + scanIdx) (lo + len) minGood eager
       (by rw [el]; exact hv) (by rw [el]; exact hs) hvsz hssz (by omega) hmg
-    have hv1 : v1.size = v.size := hv1
-    have hs1 : s1.size = s.size := hs1
-    have hpos : 0 < nextRun.len.toNat := hpos
-    have hle : (lo + scanIdx).toNat + nextRun.len.toNat ≤ (lo + len).toNat := hle
+    have hv1' : v1.size = v.size := hv1
+    have hs1' : s1.size = s.size := hs1
+    have hpos' : 0 < nextRun.len.toNat := hpos
+    have hle' : (lo + scanIdx).toNat + nextRun.len.toNat ≤ (lo + len).toNat := hle
     have hnlen : scanIdx.toNat + nextRun.len.toNat ≤ len.toNat := by omega
     let desired := mergeTreeDepth (scanIdx - prevRun.len) scanIdx (scanIdx + nextRun.len) scale
     let ⟨(prevRun', st', v2, s2), hv2, hs2, hsum'⟩ := collapse quick lo scanIdx scratchLen desired prevRun st v1 s1
-      (by rw [hv1]; omega) (by rw [hs1]; omega) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) hsum
-    have hv2 : v2.size = v1.size := hv2
-    have hs2 : s2.size = s1.size := hs2
-    have hsum' : stackSum st' + prevRun'.len.toNat = scanIdx.toNat := hsum'
+      (by rw [hv1']; omega) (by rw [hs1']; omega) (by rw [hv1']; exact hvsz) (by rw [hs1']; exact hssz) hsum
+    have hv2' : v2.size = v1.size := hv2
+    have hs2' : s2.size = s1.size := hs2
+    have hsum'' : stackSum st' + prevRun'.len.toNat = scanIdx.toNat := hsum'
     have esn : (scanIdx + nextRun.len).toNat = scanIdx.toNat + nextRun.len.toNat := toNat_add_of_lt _ _ (by omega)
     castVS (driftLoop quick lo len scratchLen minGood scale eager (scanIdx + nextRun.len) nextRun ((prevRun', desired) :: st') v2 s2
-      (by rw [hv2, hv1]; exact hv) (by rw [hs2, hs1]; exact hs) (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) hmg
-      (by rw [esn]; exact hnlen) (by simp only [stackSum_cons, esn]; omega)) (hv2.trans hv1) (hs2.trans hs1)
+      (by rw [hv2', hv1']; exact hv) (by rw [hs2', hs1']; exact hs) (by rw [hv2', hv1']; exact hvsz) (by rw [hs2', hs1']; exact hssz) hmg
+      (by rw [esn]; exact hnlen) (by simp only [stackSum_cons, esn]; omega)) (hv2'.trans hv1') (hs2'.trans hs1')
   else
     -- the final dummy run wants root depth: collapse everything, then sort the rest if unsorted
     let ⟨(prevRun', _, v2, s2), hv2, hs2, _⟩ := collapse quick lo scanIdx scratchLen 0 prevRun st v s
       (by omega) (by omega) hvsz hssz hsum
-    have hv2 : v2.size = v.size := hv2
-    have hs2 : s2.size = s.size := hs2
+    have hv2' : v2.size = v.size := hv2
+    have hs2' : s2.size = s.size := hs2
     -- (the length check always holds: the bottom of the stack is the empty dummy run; it is checked
     -- rather than proved as an invariant)
-    if prevRun'.sorted ∧ prevRun'.len = len then ⟨(v2, s2), hv2, hs2⟩
+    if prevRun'.sorted ∧ prevRun'.len = len then ⟨(v2, s2), hv2', hs2'⟩
     else
       have el : (lo + len).toNat = lo.toNat + len.toNat := toNat_add_of_lt _ _ (by omega)
-      castVS (quick v2 s2 lo (lo + len) (by rw [hv2, el]; exact hv) (by rw [hs2, el]; exact hs) (by rw [hv2]; exact hvsz)
-        (by rw [hs2]; exact hssz) (by omega)) hv2 hs2
+      castVS (quick v2 s2 lo (lo + len) (by rw [hv2', el]; exact hv) (by rw [hs2', el]; exact hs) (by rw [hv2']; exact hvsz)
+        (by rw [hs2']; exact hssz) (by omega)) hv2' hs2'
 termination_by len.toNat - scanIdx.toNat
 decreasing_by all_goals (simp only [esn]; omega)
 
@@ -481,30 +481,30 @@ def quicksort (v s : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : U
       let ⟨(nl, v1, s1), hv1, hs1, hnl⟩ :
           { r : UInt64 × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧ r.1.toNat ≤ hi.toNat - lo.toNat } :=
         if performEq then ⟨(0, v, s), rfl, rfl, by simp⟩ else stablePartition v s lo hi pivot false hv hs hvsz hssz (by omega)
-      have hv1 : v1.size = v.size := hv1
-      have hs1 : s1.size = s.size := hs1
-      have hnl : nl.toNat ≤ hi.toNat - lo.toNat := hnl
+      have hv1' : v1.size = v.size := hv1
+      have hs1' : s1.size = s.size := hs1
+      have hnl' : nl.toNat ≤ hi.toNat - lo.toNat := hnl
       if performEq || nl == 0 then
-        let ⟨(midEq, v2, s2), hv2, hs2, hme⟩ := stablePartition v1 s1 lo hi pivot true (by rw [hv1]; exact hv)
-          (by rw [hs1]; exact hs) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) (by omega)
-        have hv2 : v2.size = v1.size := hv2
-        have hs2 : s2.size = s1.size := hs2
-        have hme : midEq.toNat ≤ hi.toNat - lo.toNat := hme
+        let ⟨(midEq, v2, s2), hv2, hs2, hme⟩ := stablePartition v1 s1 lo hi pivot true (by rw [hv1']; exact hv)
+          (by rw [hs1']; exact hs) (by rw [hv1']; exact hvsz) (by rw [hs1']; exact hssz) (by omega)
+        have hv2' : v2.size = v1.size := hv2
+        have hs2' : s2.size = s1.size := hs2
+        have hme' : midEq.toNat ≤ hi.toNat - lo.toNat := hme
         if h : 0 < midEq.toNat then
           have em : (lo + midEq).toNat = lo.toNat + midEq.toNat := toNat_add_of_lt _ _ (by omega)
-          castVS (quicksort v2 s2 (lo + midEq) hi scratchLen limit false 0 (by rw [hv2, hv1]; exact hv) (by rw [hs2, hs1]; exact hs)
-            (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) (by rw [em]; omega)) (hv2.trans hv1) (hs2.trans hs1)
-        else ⟨(v2, s2), hv2.trans hv1, hs2.trans hs1⟩
+          castVS (quicksort v2 s2 (lo + midEq) hi scratchLen limit false 0 (by rw [hv2', hv1']; exact hv) (by rw [hs2', hs1']; exact hs)
+            (by rw [hv2', hv1']; exact hvsz) (by rw [hs2', hs1']; exact hssz) (by rw [em]; omega)) (hv2'.trans hv1') (hs2'.trans hs1')
+        else ⟨(v2, s2), hv2'.trans hv1', hs2'.trans hs1'⟩
       else
         if h : 0 < nl.toNat ∧ nl.toNat < len.toNat then
           have en : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
-          let ⟨(v2, s2), hv2, hs2⟩ := quicksort v1 s1 (lo + nl) hi scratchLen limit true pivot (by rw [hv1]; exact hv)
-            (by rw [hs1]; exact hs) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) (by rw [en]; omega)
-          have hv2 : v2.size = v1.size := hv2
-          have hs2 : s2.size = s1.size := hs2
-          castVS (quicksort v2 s2 lo (lo + nl) scratchLen limit hasLA la (by rw [hv2, hv1, en]; omega) (by rw [hs2, hs1, en]; omega)
-            (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) (by rw [en]; omega)) (hv2.trans hv1) (hs2.trans hs1)
-        else ⟨(v1, s1), hv1, hs1⟩
+          let ⟨(v2, s2), hv2, hs2⟩ := quicksort v1 s1 (lo + nl) hi scratchLen limit true pivot (by rw [hv1']; exact hv)
+            (by rw [hs1']; exact hs) (by rw [hv1']; exact hvsz) (by rw [hs1']; exact hssz) (by rw [en]; omega)
+          have hv2' : v2.size = v1.size := hv2
+          have hs2' : s2.size = s1.size := hs2
+          castVS (quicksort v2 s2 lo (lo + nl) scratchLen limit hasLA la (by rw [hv2', hv1', en]; omega) (by rw [hs2', hs1', en]; omega)
+            (by rw [hv2', hv1']; exact hvsz) (by rw [hs2', hs1']; exact hssz) (by rw [en]; omega)) (hv2'.trans hv1') (hs2'.trans hs1')
+        else ⟨(v1, s1), hv1', hs1'⟩
 termination_by hi.toNat - lo.toNat
 decreasing_by all_goals (first | (simp only [em]; omega) | (simp only [en]; omega))
 

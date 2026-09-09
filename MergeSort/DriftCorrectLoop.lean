@@ -279,4 +279,133 @@ theorem collapse_spec (quick : Quick) (HQ : QuickSpec quick) (lo scanIdx scratch
         (fun x hx => L3 x (by omega))
     · exact ⟨hok, List.Perm.refl _, fun _ _ => rfl⟩
 
+theorem driftLoop_spec (quick : Quick) (HQ : QuickSpec quick) (lo len scratchLen minGood scale : UInt64) (eager : Bool) :
+    ∀ (m : Nat) (scanIdx : UInt64) (prevRun : Run) (st : Stack) (v s : A) hv hs hvsz hssz hmg hscan hsum, m = len.toNat - scanIdx.toNat →
+    RunsOK (prevRun :: st.map Prod.fst) (lo.toNat + scanIdx.toNat) v →
+    Sorted le64 ((driftLoop quick lo len scratchLen minGood scale eager scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum).1.1.slice lo.toNat len.toNat) ∧
+    ((driftLoop quick lo len scratchLen minGood scale eager scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum).1.1.slice lo.toNat len.toNat).Perm
+      (v.slice lo.toNat len.toNat) ∧
+    ∀ x, (x < lo.toNat ∨ lo.toNat + len.toNat ≤ x) →
+      (driftLoop quick lo len scratchLen minGood scale eager scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum).1.1.at' x = v.at' x := by
+  intro m
+  induction m using Nat.strongRecOn with
+  | _ m ih =>
+  intro scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum hm hok
+  have hbnd := UInt64.toNat_lt len
+  rw [driftLoop]
+  split
+  · rename_i h
+    have h : scanIdx.toNat < len.toNat := h
+    have es : (lo + scanIdx).toNat = lo.toNat + scanIdx.toNat := toNat_add_of_lt _ _ (by omega)
+    have el : (lo + len).toNat = lo.toNat + len.toNat := toNat_add_of_lt _ _ (by omega)
+    dsimp only
+    -- the next run
+    have C := createRun_spec v s (lo + scanIdx) (lo + len) minGood eager (by rw [el]; exact hv) (by rw [el]; exact hs) hvsz hssz (by omega) hmg
+    generalize hR : createRun v s (lo + scanIdx) (lo + len) minGood eager (by rw [el]; exact hv) (by rw [el]; exact hs) hvsz hssz (by omega) hmg = R at C
+    rcases R with ⟨⟨nextRun, v1, s1⟩, hv1, hs1, hpos, hle⟩
+    dsimp only at C hv1 hs1 hpos hle ⊢
+    obtain ⟨C1, C2, C3⟩ := C
+    rw [es] at C1
+    rw [es, el] at C2 C3 hle
+    -- the old runs are untouched
+    have hok1 : RunsOK (prevRun :: st.map Prod.fst) (lo.toNat + scanIdx.toNat) v1 :=
+      RunsOK_congr _ _ v v1 (fun x _ hx2 => C3 x (Or.inl hx2)) hok
+    -- collapse
+    have K := collapse_spec quick HQ lo scanIdx scratchLen (mergeTreeDepth (scanIdx - prevRun.len) scanIdx (scanIdx + nextRun.len) scale)
+      st prevRun v1 s1 (by rw [hv1]; omega) (by rw [hs1]; omega) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) hsum hok1
+    generalize hK : collapse quick lo scanIdx scratchLen (mergeTreeDepth (scanIdx - prevRun.len) scanIdx (scanIdx + nextRun.len) scale)
+      prevRun st v1 s1 (by rw [hv1]; omega) (by rw [hs1]; omega) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) hsum = K' at K
+    rcases K' with ⟨⟨prevRun', st', v2, s2⟩, hv2, hs2, hsum'⟩
+    dsimp only at K hv2 hs2 hsum' ⊢
+    simp only [castVS_val]
+    obtain ⟨K1, K2, K3⟩ := K
+    have esn : (scanIdx + nextRun.len).toNat = scanIdx.toNat + nextRun.len.toNat := toNat_add_of_lt _ _ (by omega)
+    -- the invariant for the next iteration
+    have hok2 : RunsOK (nextRun :: ((prevRun', mergeTreeDepth (scanIdx - prevRun.len) scanIdx (scanIdx + nextRun.len) scale) :: st').map Prod.fst)
+        (lo.toNat + (scanIdx + nextRun.len).toNat) v2 := by
+      refine ⟨by rw [esn]; omega, fun hs' => ?_, ?_⟩
+      · rw [esn, show lo.toNat + (scanIdx.toNat + nextRun.len.toNat) - nextRun.len.toNat = lo.toNat + scanIdx.toNat by omega,
+          slice_congr (fun t ht => K3 _ (Or.inr (by omega)))]
+        exact C1 hs'
+      · rw [esn, show lo.toNat + (scanIdx.toNat + nextRun.len.toNat) - nextRun.len.toNat = lo.toNat + scanIdx.toNat by omega]
+        exact K1
+    have IH := ih (len.toNat - (scanIdx + nextRun.len).toNat) (by rw [esn]; omega) (scanIdx + nextRun.len) nextRun
+      ((prevRun', mergeTreeDepth (scanIdx - prevRun.len) scanIdx (scanIdx + nextRun.len) scale) :: st') v2 s2
+      (by rw [hv2, hv1]; exact hv) (by rw [hs2, hs1]; exact hs) (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) hmg
+      (by rw [esn]; omega) (by simp only [stackSum_cons, esn]; omega) rfl hok2
+    generalize hD : driftLoop quick lo len scratchLen minGood scale eager (scanIdx + nextRun.len) nextRun
+      ((prevRun', mergeTreeDepth (scanIdx - prevRun.len) scanIdx (scanIdx + nextRun.len) scale) :: st') v2 s2
+      (by rw [hv2, hv1]; exact hv) (by rw [hs2, hs1]; exact hs) (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) hmg
+      (by rw [esn]; omega) (by simp only [stackSum_cons, esn]; omega) = D at IH
+    rcases D with ⟨⟨v3, s3⟩, hv3, hs3⟩
+    dsimp only at IH ⊢
+    obtain ⟨IH1, IH2, IH3⟩ := IH
+    refine ⟨IH1, IH2.trans ?_, fun x hx => (IH3 x hx).trans ((K3 x (by omega)).trans (C3 x (by omega)))⟩
+    -- v2 ~ v1 on the prefix, v1 ~ v on the suffix
+    refine (perm_of_sub v1 v2 lo.toNat len.toNat lo.toNat scanIdx.toNat (Nat.le_refl _) (by omega) K2 K3).trans ?_
+    exact perm_of_sub v v1 lo.toNat len.toNat (lo.toNat + scanIdx.toNat) (lo.toNat + len.toNat - (lo.toNat + scanIdx.toNat)) (by omega) (by omega) C2
+      (fun x hx => C3 x (by omega))
+  · rename_i h
+    have h : ¬ scanIdx.toNat < len.toNat := h
+    have hsl : scanIdx.toNat = len.toNat := by omega
+    dsimp only
+    have K := collapse_spec quick HQ lo scanIdx scratchLen 0 st prevRun v s (by omega) (by omega) hvsz hssz hsum hok
+    generalize hK : collapse quick lo scanIdx scratchLen 0 prevRun st v s (by omega) (by omega) hvsz hssz hsum = K' at K
+    rcases K' with ⟨⟨prevRun', st', v2, s2⟩, hv2, hs2, hsum'⟩
+    dsimp only at K hv2 hs2 hsum' ⊢
+    obtain ⟨K1, K2, K3⟩ := K
+    rw [hsl] at K2 K3
+    split
+    · rename_i hfin
+      obtain ⟨hsorted, hlen⟩ := hfin
+      refine ⟨?_, K2, K3⟩
+      have := K1.2.1 hsorted
+      rwa [hlen, hsl, Nat.add_sub_cancel] at this
+    · have el : (lo + len).toNat = lo.toNat + len.toNat := toNat_add_of_lt _ _ (by omega)
+      simp only [castVS_val]
+      have Q := HQ v2 s2 lo (lo + len) (by rw [hv2, el]; exact hv) (by rw [hs2, el]; exact hs) (by rw [hv2]; exact hvsz)
+        (by rw [hs2]; exact hssz) (by omega)
+      generalize hQ : quick v2 s2 lo (lo + len) (by rw [hv2, el]; exact hv) (by rw [hs2, el]; exact hs) (by rw [hv2]; exact hvsz)
+        (by rw [hs2]; exact hssz) (by omega) = Qr at Q
+      rcases Qr with ⟨⟨v3, s3⟩, hv3, hs3⟩
+      dsimp only at Q ⊢
+      rw [el, Nat.add_sub_cancel_left] at Q
+      exact ⟨Q.1, Q.2.1.trans K2, fun x hx => (Q.2.2 x hx).trans (K3 x hx)⟩
+
+theorem driftSort_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo hi scratchLen : UInt64) (eager : Bool) hv hs hvsz hssz hlo :
+    Sorted le64 ((driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ((driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
+      (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.at' x = v.at' x := by
+  unfold driftSort
+  have hlen : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hlo)
+  dsimp only
+  split
+  · rename_i h2
+    have h2 : (hi - lo).toNat < 2 := by have := UInt64.lt_iff_toNat_lt.mp h2; simpa using this
+    exact ⟨sorted_of_length_le_one _ (by simp; omega), List.Perm.refl _, fun _ _ => rfl⟩
+  · -- the minimum good run length, spelled out as in the definition
+    have hmg : 0 < (if (if hi - lo ≤ minSqrtRunLen * minSqrtRunLen then min (hi - lo - (hi - lo) / 2) minSqrtRunLen else sqrtApprox (hi - lo)) == 0
+        then 1 else (if hi - lo ≤ minSqrtRunLen * minSqrtRunLen then min (hi - lo - (hi - lo) / 2) minSqrtRunLen else sqrtApprox (hi - lo))).toNat := by
+      generalize (if hi - lo ≤ minSqrtRunLen * minSqrtRunLen then min (hi - lo - (hi - lo) / 2) minSqrtRunLen else sqrtApprox (hi - lo)) = mg0
+      split
+      · decide
+      · rename_i h; have : mg0 ≠ 0 := by simpa using h
+        have : mg0.toNat ≠ 0 := fun c => this (UInt64.toNat.inj (by simpa using c))
+        omega
+    have D := driftLoop_spec quick HQ lo (hi - lo) scratchLen
+      (if (if hi - lo ≤ minSqrtRunLen * minSqrtRunLen then min (hi - lo - (hi - lo) / 2) minSqrtRunLen else sqrtApprox (hi - lo)) == 0
+        then 1 else (if hi - lo ≤ minSqrtRunLen * minSqrtRunLen then min (hi - lo - (hi - lo) / 2) minSqrtRunLen else sqrtApprox (hi - lo)))
+      (mergeTreeScaleFactor (hi - lo)) eager ((hi - lo).toNat - (0 : UInt64).toNat) 0
+      ⟨0, true⟩ [] v s (by omega) (by omega) hvsz hssz hmg (Nat.zero_le _) rfl rfl (by simp [RunsOK, Sorted])
+    simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.add_zero, hlen] at D
+    exact ⟨D.1, D.2.1, fun x hx => D.2.2 x (by omega)⟩
+
+theorem driftSortEager_spec (v s : A) (lo hi scratchLen : UInt64) hv hs hvsz hssz hlo :
+    Sorted le64 ((driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ((driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
+      (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.at' x = v.at' x :=
+  driftSort_spec insertionQuick insertionQuick_spec v s lo hi scratchLen true hv hs hvsz hssz hlo
+
 end DriftSort
