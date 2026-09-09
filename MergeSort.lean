@@ -23,4 +23,6 @@ import MergeSort.Generic
 import MergeSort.GenericU64
 import MergeSort.Drift
 import MergeSort.DriftSort
+import MergeSort.DriftCorrect
+import MergeSort.DriftCorrectLoop
 import MergeSort.Adaptive

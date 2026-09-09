@@ -408,4 +408,340 @@ theorem driftSortEager_spec (v s : A) (lo hi scratchLen : UInt64) hv hs hvsz hss
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.at' x = v.at' x :=
   driftSort_spec insertionQuick insertionQuick_spec v s lo hi scratchLen true hv hs hvsz hssz hlo
 
+/-! ## The quicksort -/
+
+theorem mem_slice_of_lt (a : A) (off len i : Nat) (h1 : off ≤ i) (h2 : i < off + len) : a.at' i ∈ a.slice off len := by
+  simp only [slice, List.mem_map, List.mem_range]
+  exact ⟨i - off, by omega, by congr 1; omega⟩
+
+theorem sorted_of_const (p : UInt64) : ∀ (l : List UInt64), (∀ x ∈ l, x = p) → Sorted le64 l := by
+  intro l
+  induction l with
+  | nil => intro _; simp [Sorted]
+  | cons x l ih =>
+    intro h
+    refine List.pairwise_cons.mpr ⟨fun y hy => ?_, ih (fun y hy => h y (List.mem_cons_of_mem _ hy))⟩
+    rw [h x (List.mem_cons_self ..), h y (List.mem_cons_of_mem _ hy)]
+    simp [le64]
+
+theorem mem_leftPart {eq : Bool} {p x : UInt64} {l : List UInt64} : x ∈ leftPart eq p l ↔ x ∈ l ∧ goesLeft eq p x = true := List.mem_filter
+theorem mem_rightPart {eq : Bool} {p x : UInt64} {l : List UInt64} : x ∈ rightPart eq p l ↔ x ∈ l ∧ goesLeft eq p x = false := by
+  simp [rightPart, List.mem_filter]
+
+theorem goesLeft_false (p x : UInt64) : goesLeft false p x = decide (x < p) := rfl
+theorem goesLeft_true (p x : UInt64) : goesLeft true p x = decide (x ≤ p) := rfl
+
+set_option maxHeartbeats 4000000 in
+theorem quicksort_spec (scratchLen : UInt64) :
+    ∀ (m : Nat) (v s : A) (lo hi limit : UInt64) (hasLA : Bool) (la : UInt64) hv hs hvsz hssz hlo, m = hi.toNat - lo.toNat →
+    (hasLA = true → ∀ x ∈ v.slice lo.toNat (hi.toNat - lo.toNat), la ≤ x) →
+    Sorted le64 ((quicksort v s lo hi scratchLen limit hasLA la hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ((quicksort v s lo hi scratchLen limit hasLA la hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
+      (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (quicksort v s lo hi scratchLen limit hasLA la hv hs hvsz hssz hlo).1.1.at' x = v.at' x := by
+  intro m
+  induction m using Nat.strongRecOn with
+  | _ m ih =>
+  intro v s lo hi limit hasLA la hv hs hvsz hssz hlo hm hpre
+  have hbnd := UInt64.toNat_lt hi
+  have hlen : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hlo)
+  rw [quicksort]
+  dsimp only
+  split
+  · exact smallSort_spec v s lo hi hv hs hvsz hssz hlo
+  · rename_i h32
+    have h32 : 32 < (hi - lo).toNat := by
+      have := UInt64.not_le.mp h32; have := UInt64.lt_iff_toNat_lt.mp this; simpa [smallSortThreshold] using this
+    split
+    · exact driftSortEager_spec v s lo hi scratchLen hv hs hvsz hssz hlo
+    · -- the pivot
+      generalize hPP : choosePivot v lo hi hvsz hv (by omega) = PP
+      rcases PP with ⟨pp, hpp1, hpp2⟩
+      dsimp only
+      have hpiv : v.get pp (by omega) = v.at' pp.toNat := get_eq_at' _ _ _
+      have hpmem : v.at' pp.toNat ∈ v.slice lo.toNat (hi.toNat - lo.toNat) := mem_slice_of_lt v _ _ _ hpp1 (by omega)
+      generalize hpv : v.get pp (by omega) = pivot at hpiv
+      -- the first partition (skipped when the pivot equals the left ancestor)
+      have P1 : ∀ (r : { r : UInt64 × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧ r.1.toNat ≤ hi.toNat - lo.toNat }),
+          (r = if (hasLA && decide (pivot ≤ la)) = true then ⟨(0, v, s), rfl, rfl, by simp⟩
+            else stablePartition v s lo hi pivot false hv hs hvsz hssz (by omega)) →
+          (r.1.2.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+          (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → r.1.2.1.at' x = v.at' x) ∧
+          ((hasLA && decide (pivot ≤ la)) = true → r.1.2.1 = v ∧ r.1.1 = 0) ∧
+          ((hasLA && decide (pivot ≤ la)) = false →
+            r.1.2.1.slice lo.toNat (hi.toNat - lo.toNat) =
+              leftPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) ++ rightPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+            r.1.1.toNat = (leftPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat))).length) := by
+        intro r hr
+        rw [hr]
+        split
+        · rename_i hc
+          exact ⟨List.Perm.refl _, fun _ _ => rfl, fun _ => ⟨rfl, rfl⟩, fun hf => by rw [hc] at hf; cases hf⟩
+        · rename_i hc
+          obtain ⟨S1, S2, S3⟩ := stablePartition_spec v s lo hi pivot false hv hs hvsz hssz (by omega)
+          refine ⟨?_, S3, fun ht => absurd ht hc, fun _ => ⟨S1, S2⟩⟩
+          rw [S1]; exact leftPart_append_rightPart_perm _ _ _
+      generalize hP1 : (if (hasLA && decide (pivot ≤ la)) = true then ⟨(0, v, s), rfl, rfl, by simp⟩
+        else stablePartition v s lo hi pivot false hv hs hvsz hssz (by omega) :
+        { r : UInt64 × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧ r.1.toNat ≤ hi.toNat - lo.toNat }) = R1
+      have P1 := P1 R1 hP1.symm
+      rcases R1 with ⟨⟨nl, v1, s1⟩, hv1, hs1, hnl⟩
+      dsimp only at P1 hv1 hs1 hnl ⊢
+      obtain ⟨P1a, P1b, P1c, P1d⟩ := P1
+      have hpmem1 : pivot ∈ v1.slice lo.toNat (hi.toNat - lo.toNat) := P1a.mem_iff.mpr (hpiv ▸ hpmem)
+      have hsplit1 : v1.slice lo.toNat (hi.toNat - lo.toNat) = v1.slice lo.toNat nl.toNat ++ v1.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat) := by
+        rw [← slice_add]; congr 1; omega
+      split
+      · -- equal-element partition: everything ≤ pivot in this range equals the pivot
+        rename_i heq
+        have Hall : ∀ x ∈ v1.slice lo.toNat (hi.toNat - lo.toNat), pivot ≤ x := by
+          intro x hx
+          by_cases hpe : (hasLA && decide (pivot ≤ la)) = true
+          · obtain ⟨hvv, _⟩ := P1c hpe
+            rw [hvv] at hx
+            simp only [Bool.and_eq_true, decide_eq_true_eq] at hpe
+            exact UInt64.le_trans hpe.2 (hpre hpe.1 x hx)
+          · have hpe' : (hasLA && decide (pivot ≤ la)) = false := by simpa using hpe
+            obtain ⟨E1, E2⟩ := P1d hpe'
+            have hnl0 : nl = 0 := by
+              simp only [Bool.or_eq_true, hpe', Bool.false_eq_true, false_or, beq_iff_eq] at heq; exact heq
+            rw [hnl0] at E2
+            have hL : leftPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) = [] := List.eq_nil_of_length_eq_zero (by simpa using E2.symm)
+            rw [E1, hL, List.nil_append] at hx
+            have := (mem_rightPart.mp hx).2
+            rw [goesLeft_false] at this
+            simpa using this
+        -- the second partition
+        have P2 := stablePartition_spec v1 s1 lo hi pivot true (by rw [hv1]; exact hv) (by rw [hs1]; exact hs) (by rw [hv1]; exact hvsz)
+          (by rw [hs1]; exact hssz) (by omega)
+        generalize hP2 : stablePartition v1 s1 lo hi pivot true (by rw [hv1]; exact hv) (by rw [hs1]; exact hs) (by rw [hv1]; exact hvsz)
+          (by rw [hs1]; exact hssz) (by omega) = R2 at P2
+        rcases R2 with ⟨⟨midEq, v2, s2⟩, hv2, hs2, hme⟩
+        dsimp only at P2 hv2 hs2 hme ⊢
+        obtain ⟨Q1, Q2, Q3⟩ := P2
+        have hpmem2 : pivot ∈ leftPart true pivot (v1.slice lo.toNat (hi.toNat - lo.toNat)) :=
+          mem_leftPart.mpr ⟨hpmem1, by rw [goesLeft_true]; simp⟩
+        split
+        · rename_i hpos
+          have em : (lo + midEq).toNat = lo.toNat + midEq.toNat := toNat_add_of_lt _ _ (by omega)
+          have IH := ih (hi.toNat - (lo + midEq).toNat) (by rw [em]; omega) v2 s2 (lo + midEq) hi (limit - 1) false 0
+            (by rw [hv2, hv1]; exact hv) (by rw [hs2, hs1]; exact hs) (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz)
+            (by rw [em]; omega) rfl (fun h => by simp at h)
+          generalize hQ : quicksort v2 s2 (lo + midEq) hi scratchLen (limit - 1) false 0 (by rw [hv2, hv1]; exact hv) (by rw [hs2, hs1]; exact hs)
+            (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) (by rw [em]; omega) = Q at IH
+          rcases Q with ⟨⟨v3, s3⟩, hv3, hs3⟩
+          dsimp only at IH ⊢
+          simp only [castVS_val]
+          obtain ⟨I1, I2, I3⟩ := IH
+          rw [em] at I1 I2 I3
+          rw [show hi.toNat - (lo.toNat + midEq.toNat) = hi.toNat - lo.toNat - midEq.toNat by omega] at I1 I2
+          -- the left part of v2 (all equal to the pivot) is untouched by the recursion
+          have hsplit2 : v2.slice lo.toNat (hi.toNat - lo.toNat) =
+              v2.slice lo.toNat midEq.toNat ++ v2.slice (lo.toNat + midEq.toNat) (hi.toNat - lo.toNat - midEq.toNat) := by
+            rw [← slice_add]; congr 1; omega
+          have hLR := Q1
+          rw [hsplit2] at hLR
+          have hLen : (v2.slice lo.toNat midEq.toNat).length = (leftPart true pivot (v1.slice lo.toNat (hi.toNat - lo.toNat))).length := by
+            rw [length_slice, Q2]
+          obtain ⟨hLeq, hReq⟩ := List.append_inj hLR hLen
+          have v3lo : v3.slice lo.toNat midEq.toNat = v2.slice lo.toNat midEq.toNat := by
+            apply slice_congr; intro t ht; exact I3 _ (Or.inl (by omega))
+          have hsplit3 : v3.slice lo.toNat (hi.toNat - lo.toNat) =
+              v3.slice lo.toNat midEq.toNat ++ v3.slice (lo.toNat + midEq.toNat) (hi.toNat - lo.toNat - midEq.toNat) := by
+            rw [← slice_add]; congr 1; omega
+          have hconst : ∀ x ∈ v2.slice lo.toNat midEq.toNat, x = pivot := by
+            intro x hx
+            rw [hLeq] at hx
+            obtain ⟨hx1, hx2⟩ := mem_leftPart.mp hx
+            rw [goesLeft_true] at hx2
+            exact UInt64.le_antisymm (by simpa using hx2) (Hall x hx1)
+          refine ⟨?_, ?_, fun x hx => (I3 x (by omega)).trans ((Q3 x hx).trans (P1b x hx))⟩
+          · rw [hsplit3, Sorted, List.pairwise_append]
+            refine ⟨by rw [v3lo]; exact sorted_of_const pivot _ hconst, I1, fun x hx y hy => ?_⟩
+            rw [v3lo] at hx
+            rw [hconst x hx]
+            have hy' := I2.mem_iff.mp hy
+            rw [hReq] at hy'
+            have := (mem_rightPart.mp hy').2
+            rw [goesLeft_true] at this
+            simp only [le64, decide_eq_true_eq]
+            exact UInt64.le_of_lt (by simpa using this)
+          · refine (perm_of_sub v2 v3 lo.toNat (hi.toNat - lo.toNat) (lo.toNat + midEq.toNat) (hi.toNat - lo.toNat - midEq.toNat)
+              (by omega) (by omega) I2 (fun x hx => I3 x (by omega))).trans ?_
+            rw [Q1]
+            exact (leftPart_append_rightPart_perm _ _ _).trans P1a
+        · -- dead branch: the pivot itself is in the left part
+          rename_i hpos
+          exfalso
+          apply hpos
+          rw [Q2]
+          exact List.length_pos_of_mem hpmem2
+      · -- the pivot is neither the left ancestor nor the minimum: two-sided recursion
+        rename_i hne
+        have hpe' : (hasLA && decide (pivot ≤ la)) = false := by
+          simp only [Bool.or_eq_true, not_or] at hne; simpa using hne.1
+        have hnl0 : nl ≠ 0 := by
+          simp only [Bool.or_eq_true, not_or, beq_iff_eq] at hne; exact hne.2
+        obtain ⟨E1, E2⟩ := P1d hpe'
+        have hLen : (v1.slice lo.toNat nl.toNat).length = (leftPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat))).length := by
+          rw [length_slice, E2]
+        rw [hsplit1] at E1
+        obtain ⟨hLeq, hReq⟩ := List.append_inj E1 hLen
+        have hpmemR : pivot ∈ rightPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat)) :=
+          mem_rightPart.mpr ⟨hpiv ▸ hpmem, by rw [goesLeft_false]; simp⟩
+        split
+        · rename_i hok
+          have en : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
+          -- right part first
+          have IH1 := ih (hi.toNat - (lo + nl).toNat) (by rw [en]; omega) v1 s1 (lo + nl) hi (limit - 1) true pivot
+            (by rw [hv1]; exact hv) (by rw [hs1]; exact hs) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) (by rw [en]; omega) rfl
+            (by intro _ x hx
+                rw [en, show hi.toNat - (lo.toNat + nl.toNat) = hi.toNat - lo.toNat - nl.toNat by omega, hReq] at hx
+                have := (mem_rightPart.mp hx).2
+                rw [goesLeft_false] at this
+                simpa using this)
+          generalize hQ1 : quicksort v1 s1 (lo + nl) hi scratchLen (limit - 1) true pivot (by rw [hv1]; exact hv) (by rw [hs1]; exact hs)
+            (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) (by rw [en]; omega) = Q1 at IH1
+          rcases Q1 with ⟨⟨v2, s2⟩, hv2, hs2⟩
+          dsimp only at IH1 ⊢
+          obtain ⟨I1, I2, I3⟩ := IH1
+          rw [en] at I1 I2 I3
+          have v2lo : v2.slice lo.toNat nl.toNat = v1.slice lo.toNat nl.toNat := by
+            apply slice_congr; intro t ht; exact I3 _ (Or.inl (by omega))
+          -- then the left part, with the original ancestor
+          have IH2 := ih ((lo + nl).toNat - lo.toNat) (by rw [en]; omega) v2 s2 lo (lo + nl) (limit - 1) hasLA la
+            (by rw [hv2, hv1, en]; omega) (by rw [hs2, hs1, en]; omega) (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz)
+            (by rw [en]; omega) rfl
+            (by intro hla x hx
+                have hx2 : x ∈ v2.slice lo.toNat nl.toNat := by simpa [en] using hx
+                rw [v2lo, hLeq] at hx2
+                exact hpre hla x (mem_leftPart.mp hx2).1)
+          generalize hQ2 : quicksort v2 s2 lo (lo + nl) scratchLen (limit - 1) hasLA la (by rw [hv2, hv1, en]; omega) (by rw [hs2, hs1, en]; omega)
+            (by rw [hv2, hv1]; exact hvsz) (by rw [hs2, hs1]; exact hssz) (by rw [en]; omega) = Q2 at IH2
+          rcases Q2 with ⟨⟨v3, s3⟩, hv3, hs3⟩
+          dsimp only at IH2 ⊢
+          simp only [castVS_val]
+          obtain ⟨J1, J2, J3⟩ := IH2
+          rw [en] at J1 J2 J3
+          rw [Nat.add_sub_cancel_left] at J1 J2
+          have v3hi : v3.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat) = v2.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat) := by
+            apply slice_congr; intro t ht; exact J3 _ (Or.inr (by omega))
+          have hsplit3 : v3.slice lo.toNat (hi.toNat - lo.toNat) =
+              v3.slice lo.toNat nl.toNat ++ v3.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat) := by
+            rw [← slice_add]; congr 1; omega
+          have I2' : (v2.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat)).Perm (v1.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat)) := by
+            have := I2
+            rwa [show hi.toNat - (lo.toNat + nl.toNat) = hi.toNat - lo.toNat - nl.toNat by omega] at this
+          refine ⟨?_, ?_, fun x hx => (J3 x (by omega)).trans ((I3 x (by omega)).trans (P1b x hx))⟩
+          · rw [hsplit3, Sorted, List.pairwise_append, v3hi]
+            refine ⟨J1, by have := I1; rwa [show hi.toNat - (lo.toNat + nl.toNat) = hi.toNat - lo.toNat - nl.toNat by omega] at this,
+              fun x hx y hy => ?_⟩
+            have hx' := J2.mem_iff.mp hx
+            rw [v2lo, hLeq] at hx'
+            have hxl := (mem_leftPart.mp hx').2
+            rw [goesLeft_false] at hxl
+            have hy' := I2'.mem_iff.mp hy
+            rw [hReq] at hy'
+            have hyr := (mem_rightPart.mp hy').2
+            rw [goesLeft_false] at hyr
+            simp only [le64, decide_eq_true_eq]
+            exact UInt64.le_of_lt (UInt64.lt_of_lt_of_le (by simpa using hxl) (by simpa using hyr))
+          · refine (perm_of_sub v2 v3 lo.toNat (hi.toNat - lo.toNat) lo.toNat nl.toNat (Nat.le_refl _) (by omega) J2 J3).trans ?_
+            refine (perm_of_sub v1 v2 lo.toNat (hi.toNat - lo.toNat) (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat) (by omega) (by omega) I2'
+              (fun x hx => I3 x (by omega))).trans P1a
+        · -- dead branch: 0 < nl (the pivot is not the minimum) and nl < len (the pivot is on the right)
+          rename_i hok
+          exfalso
+          apply hok
+          have hpos : 0 < nl.toNat := by
+            rcases Nat.eq_zero_or_pos nl.toNat with h0 | h0
+            · exact absurd (UInt64.toNat.inj (by simpa using h0)) hnl0
+            · exact h0
+          refine ⟨hpos, ?_⟩
+          have hlenR : 0 < (rightPart false pivot (v.slice lo.toNat (hi.toNat - lo.toNat))).length := List.length_pos_of_mem hpmemR
+          have hlenLR := congrArg List.length E1
+          simp only [List.length_append, length_slice] at hlenLR
+          rw [hlen]; omega
+
+theorem stableQuicksort_spec (scratchLen : UInt64) :
+    QuickSpec (fun v s lo hi hv hs hvsz hssz hlo => stableQuicksort v s lo hi scratchLen hv hs hvsz hssz hlo) := by
+  intro v s lo hi hv hs hvsz hssz hlo
+  unfold stableQuicksort
+  exact quicksort_spec scratchLen (hi.toNat - lo.toNat) v s lo hi _ false 0 hv hs hvsz hssz hlo rfl (fun h => by simp at h)
+
+theorem driftSortFull_spec (v s : A) (lo hi scratchLen : UInt64) hv hs hvsz hssz hlo :
+    Sorted le64 ((driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ((driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
+      (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.at' x = v.at' x :=
+  driftSort_spec _ (stableQuicksort_spec scratchLen) v s lo hi scratchLen false hv hs hvsz hssz hlo
+
+/-! ## The headline theorems -/
+
+/-- The bounds-safe driftsort returns a sorted array. -/
+theorem sort_sorted (xs : A) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sort xs hsz).data.toList := by
+  unfold sort
+  have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
+  dsimp only
+  split
+  · rename_i h
+    have h : (xs.size.toUInt64).toNat < 2 := by have := UInt64.lt_iff_toNat_lt.mp h; simpa using this
+    rw [← slice_eq_toList]
+    exact sorted_of_length_le_one _ (by simp; omega)
+  · split
+    · obtain ⟨S, _⟩ := insertionSortRange_spec 0 xs.size.toUInt64 ((xs.size.toUInt64).toNat - (0 : UInt64).toNat) 0 xs (by omega) (by omega)
+        (by simp) rfl (by simp) (by simp [Sorted])
+      have hs' : (insertionSortRange 0 xs.size.toUInt64 0 xs (by omega) (by omega) (by simp)).1.size = (xs.size.toUInt64).toNat := by
+        rw [(insertionSortRange _ _ _ _ _ _ _).2, hn]
+      simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.sub_zero] at S
+      rw [← slice_eq_toList, hs', S]
+      exact insertAll_sorted _ _ (by simp [Sorted])
+    · split
+      · have D := driftSortEager_spec xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+          (by rw [size_zeros]; omega) (by simp)
+        have hs' : (driftSortEager xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+            (by rw [size_zeros]; omega) (by simp)).1.1.size = (xs.size.toUInt64).toNat := by
+          rw [(driftSortEager _ _ _ _ _ _ _ _ _ _).2.1, hn]
+        rw [← slice_eq_toList, hs']
+        simpa using D.1
+      · have D := driftSortFull_spec xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+          (by rw [size_zeros]; omega) (by simp)
+        have hs' : (driftSortFull xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+            (by rw [size_zeros]; omega) (by simp)).1.1.size = (xs.size.toUInt64).toNat := by
+          rw [(driftSortFull _ _ _ _ _ _ _ _ _ _).2.1, hn]
+        rw [← slice_eq_toList, hs']
+        simpa using D.1
+
+/-- The bounds-safe driftsort returns a permutation of its input. -/
+theorem sort_perm (xs : A) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList := by
+  unfold sort
+  have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
+  have exs : xs.slice 0 (xs.size.toUInt64).toNat = xs.data.toList := by rw [hn, slice_eq_toList]
+  dsimp only
+  split
+  · exact List.Perm.refl _
+  · split
+    · obtain ⟨S, _⟩ := insertionSortRange_spec 0 xs.size.toUInt64 ((xs.size.toUInt64).toNat - (0 : UInt64).toNat) 0 xs (by omega) (by omega)
+        (by simp) rfl (by simp) (by simp [Sorted])
+      have hs' : (insertionSortRange 0 xs.size.toUInt64 0 xs (by omega) (by omega) (by simp)).1.size = (xs.size.toUInt64).toNat := by
+        rw [(insertionSortRange _ _ _ _ _ _ _).2, hn]
+      simp only [UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.sub_zero] at S
+      rw [← slice_eq_toList, hs', S, ← exs]
+      simpa using insertAll_perm ([] : List UInt64) (xs.slice 0 (xs.size.toUInt64).toNat)
+    · split
+      · have D := driftSortEager_spec xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+          (by rw [size_zeros]; omega) (by simp)
+        have hs' : (driftSortEager xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+            (by rw [size_zeros]; omega) (by simp)).1.1.size = (xs.size.toUInt64).toNat := by
+          rw [(driftSortEager _ _ _ _ _ _ _ _ _ _).2.1, hn]
+        rw [← slice_eq_toList, hs', ← exs]
+        simpa using D.2.1
+      · have D := driftSortFull_spec xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+          (by rw [size_zeros]; omega) (by simp)
+        have hs' : (driftSortFull xs (zeros xs.size) 0 xs.size.toUInt64 xs.size.toUInt64 (by omega) (by rw [size_zeros]; omega) (by omega)
+            (by rw [size_zeros]; omega) (by simp)).1.1.size = (xs.size.toUInt64).toNat := by
+          rw [(driftSortFull _ _ _ _ _ _ _ _ _ _).2.1, hn]
+        rw [← slice_eq_toList, hs', ← exs]
+        simpa using D.2.1
+
 end DriftSort
