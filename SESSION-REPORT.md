@@ -30,14 +30,14 @@ Peak RSS 10M: 167 MB (Rust 119 MB). Clean build of all proofs: 52 s.
 - Std.Do/mvcgen: available and works; the `do` loops it verifies allocate per iteration when they carry
   more than one mutable value (6–14× slower), so the fast code is tail-recursive with equational specs.
 
-## Scaling (ms, random u64, same machine, one run each; 10M Lean varies 330–430 across runs)
+## Scaling (ms, random u64, same machine, one run each; the 10M spread of 330–430 seen earlier came from concurrent builds, idle machine: Lean 370–376, Rust same algorithm 373–378, driftsort 270–273)
 | n | Lean `sortBlocked` (verified) | Rust same algorithm | Rust plain merge sort | Rust driftsort |
 |---|---|---|---|---|
 | 1k | 0.017 | 0.019 | 0.043 | 0.018 |
 | 10k | 0.21 | 0.20 | 0.98 | 0.14 |
 | 100k | 2.4 | 2.4 | 6.9 | 1.6 |
 | 1M | 29.8 | 28.3 | 82.9 | 18.8 |
-| 10M | 330–430 | 367 | 943 | 270 |
+| 10M | 370–376 (idle) | 373–378 (idle) | 943 | 270 |
 
 ## Negative results (measured, not kept)
 - Insertion-sorted runs of 16 feeding the blocked bidirectional passes (`lab/scratch/Blocked16-experiment.lean`):

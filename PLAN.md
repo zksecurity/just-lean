@@ -154,11 +154,11 @@ Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-no
 ## Files (lines / clean-build seconds)
 Simple 105 · UInt64Array 91 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 · BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 · SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 253 (6.4 s) · Adaptive 412 (4 s) · SkipMerge 128 · FindRun 157 · Export 10. Total 3224 lines, ~60 s clean build.
 
-## Scaling (ms, random u64, same machine, one run each; 10M Lean varies 330–430 across runs)
+## Scaling (ms, random u64, same machine, one run each; the 10M spread of 330–430 seen earlier came from concurrent builds, idle machine: Lean 370–376, Rust same algorithm 373–378, driftsort 270–273)
 | n | Lean `sortBlocked` (verified) | Rust same algorithm | Rust plain merge sort | Rust driftsort |
 |---|---|---|---|---|
 | 1k | 0.017 | 0.019 | 0.043 | 0.018 |
 | 10k | 0.21 | 0.20 | 0.98 | 0.14 |
 | 100k | 2.4 | 2.4 | 6.9 | 1.6 |
 | 1M | 29.8 | 28.3 | 82.9 | 18.8 |
-| 10M | 330–430 | 367 | 943 | 270 |
+| 10M | 370–376 (idle) | 373–378 (idle) | 943 | 270 |
