@@ -38,11 +38,12 @@ Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correc
 4. Adaptivity: the verified `isSortedFrom` / `isDescFrom` pre-checks and in-place reverse (`Adaptive.lean`,
    `sortAdaptive2`) make sorted and reversed inputs linear, like driftsort's run detection.
 5. What is left on the table: small-sort networks (`sort4_stable`/`sort8_stable` style, branchless
-   `swap_if_less`), natural-run detection for presorted inputs, the run stack / powersort policy.
-   Each is a self-contained verification target.
+   `swap_if_less`; measured +5% at 10M), natural-run detection for *partially* sorted inputs, the run
+   stack / powersort policy, and driftsort's stable-quicksort engine for unsorted runs (the real source of
+   its remaining 1.5× on random data). Each is a self-contained verification target.
 
 ## Numbers to quote (1M / 10M `u64`, ms)
-`sortBlocked` 30–35 / 368 · `sort2` 30–34 / 450–500 · `sort16` 46 / 568 · `BottomUp.sort` 48 / 600 · `Fast.sort` 68 / 780 ·
+`sortBlocked` 30–35 / 364–440 · `sort2` 30–34 / 450–500 · `sort16` 46 / 568 · `BottomUp.sort` 48 / 600 · `Fast.sort` 68 / 780 ·
 Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-notation loop 1010 / 13072.
 
 ## Files (lines / clean-build seconds)
