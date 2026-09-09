@@ -69,8 +69,9 @@ built in this order, each step verified before the next:
    two runs have lengths within 2× of each other" (Timsort-style, but proved only for correctness, not
    for the stack-height bound). Correctness spec is the same shape as `passLoop_spec`: after each merge
    the tiling and `Sorted` invariants hold; termination by the number of runs.
-   The merge itself is `mergeKernel` (bidirectional when the runs are equal, one-sided otherwise) into the
-   scratch buffer and back (`copyRange`), or a ping-pong that alternates buffers per merge level.
+   The merge itself is `mergeKernelS` (`SkipMerge.lean`, verified: bidirectional when the runs are equal,
+   one-sided otherwise, a plain copy when the runs are already in order) into the scratch buffer, with a
+   ping-pong that alternates buffers per merge level (as in the prototype).
 4. **Unsorted runs**: driftsort sorts them with a stable quicksort; a verified in-place stable quicksort is
    the largest single proof (partition permutes and preserves order among equals). The bottom-up
    `sortBlocked` on the run is a correct stand-in first (spec exists) and keeps random inputs at 30 ms.

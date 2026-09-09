@@ -16,4 +16,5 @@ import MergeSort.MergeBack
 import MergeSort.Bidi
 import MergeSort.BidiSort
 import MergeSort.Blocked
+import MergeSort.SkipMerge
 import MergeSort.Adaptive
