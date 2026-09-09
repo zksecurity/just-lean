@@ -1,4 +1,5 @@
 import MergeSort.Runs
+import MergeSort.BidiSort
 /-!
 # Part 3 building block: a verified 4-element sorting network
 
@@ -90,5 +91,68 @@ theorem sort4_spec (lo : UInt64) (a : UInt64Array) hsz h :
     have h2 : lo.toNat + 2 ≠ x := by omega
     have h3 : lo.toNat + 3 ≠ x := by omega
     simp [h0, h1, h2, h3]
+
+end MergeSort.BottomUp
+
+namespace MergeSort.BottomUp
+open UInt64Array MergeSort.Fast
+
+/-- `src.slice lo 4` spelled out. -/
+theorem slice_four (a : UInt64Array) (lo : Nat) :
+    a.slice lo 4 = [a.at' lo, a.at' (lo + 1), a.at' (lo + 2), a.at' (lo + 3)] := by
+  simp only [show (4 : Nat) = 0 + 1 + 1 + 1 + 1 from rfl, slice_succ, slice_zero, List.nil_append, Nat.add_zero]
+  rfl
+
+/-- driftsort's `sort8_stable`: two 4-element networks in place, then one (bidirectional) merge of the
+    two runs into `dst[lo, lo+8)`. -/
+def sort8 (lo : UInt64) (src dst : UInt64Array) (hssz : src.size < 2 ^ 64 := by u64) (hdsz : dst.size < 2 ^ 64 := by u64)
+    (hs : lo.toNat + 8 ≤ src.size := by u64) (hd : lo.toNat + 8 ≤ dst.size := by u64) :
+    { b : UInt64Array // b.size = dst.size } :=
+  have e4 : (lo + 4).toNat = lo.toNat + 4 := by u64
+  have e8 : (lo + 8).toNat = lo.toNat + 8 := by u64
+  let r1 := sort4 lo src
+  let r2 := sort4 (lo + 4) r1.1 (by rw [r1.2]; exact hssz) (by rw [r1.2]; omega)
+  mergeKernel lo (lo + 4) (lo + 8) r2.1 dst hdsz (by rw [r2.2, r1.2]; omega) (by omega) (by omega) (by omega)
+
+theorem sort8_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
+    Sorted le64 ((sort8 lo src dst hssz hdsz hs hd).1.slice lo.toNat 8) ∧
+    ((sort8 lo src dst hssz hdsz hs hd).1.slice lo.toNat 8).Perm (src.slice lo.toNat 8) ∧
+    ∀ x, (x < lo.toNat ∨ lo.toNat + 8 ≤ x) → (sort8 lo src dst hssz hdsz hs hd).1.at' x = dst.at' x := by
+  have e4 : (lo + 4).toNat = lo.toNat + 4 := by u64g
+  have e8 : (lo + 8).toNat = lo.toNat + 8 := by u64g
+  unfold sort8
+  dsimp only
+  obtain ⟨A1, F1⟩ := sort4_spec lo src hssz (by omega)
+  have h1 := (sort4 lo src hssz (by omega)).2
+  obtain ⟨A2, F2⟩ := sort4_spec (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)
+  have h2 := (sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).2
+  -- left run: untouched by the second network
+  have L : (sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4 =
+      net4 (src.at' lo.toNat) (src.at' (lo.toNat + 1)) (src.at' (lo.toNat + 2)) (src.at' (lo.toNat + 3)) := by
+    rw [← A1]; apply slice_congr; intro t ht; exact F2 _ (Or.inl (by omega))
+  -- right run: the original elements, untouched by the first network
+  have R : (sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4 =
+      net4 (src.at' (lo.toNat + 4)) (src.at' (lo.toNat + 4 + 1)) (src.at' (lo.toNat + 4 + 2)) (src.at' (lo.toNat + 4 + 3)) := by
+    rw [A2, e4]; congr 1 <;> exact F1 _ (Or.inr (by omega))
+  have hL : Sorted le64 ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4) := by
+    rw [L]; exact net4_sorted _ _ _ _
+  have hR : Sorted le64 ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4) := by
+    rw [R]; exact net4_sorted _ _ _ _
+  obtain ⟨M, FM⟩ := mergeKernel_spec lo (lo + 4) (lo + 8) _ dst hdsz (by rw [h2, h1]; omega) (by omega) (by omega) (by omega)
+    (by rw [show (lo + 4).toNat - lo.toNat = 4 by omega]; exact hL)
+    (by rw [show (lo + 8).toNat - (lo + 4).toNat = 4 by omega]; exact hR)
+  rw [show (lo + 4).toNat - lo.toNat = 4 by omega, show (lo + 8).toNat - (lo + 4).toNat = 4 by omega,
+    show (lo + 8).toNat - lo.toNat = 8 by omega] at M
+  refine ⟨?_, ?_, fun x hx => FM x (by rcases hx with hx | hx; exact Or.inl hx; exact Or.inr (by omega))⟩
+  · have S := merge_sorted le64 le64_trans le64_total hL hR
+    rwa [← M] at S
+  · have P : (merge le64 ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4)
+        ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4)).Perm
+        (src.slice lo.toNat 8) := by
+      rw [show (8 : Nat) = 4 + 4 from rfl, slice_add src]
+      refine (merge_perm le64 _ _).trans (List.Perm.append ?_ ?_)
+      · rw [L, slice_four]; exact net4_perm _ _ _ _
+      · rw [R, slice_four]; exact net4_perm _ _ _ _
+    rwa [← M] at P
 
 end MergeSort.BottomUp
