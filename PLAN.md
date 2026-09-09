@@ -36,7 +36,8 @@ Also worth a short chapter: the top-down ping-pong version (`Fast.lean`, `Correc
    Pure reuse of the pass/width specs; the only new idea is running passes in pairs so the data always
    returns to the same buffer.
 4. Adaptivity: the verified `isSortedFrom` / `isDescFrom` pre-checks and in-place reverse (`Adaptive.lean`,
-   `sortAdaptive2`) make sorted and reversed inputs linear, like driftsort's run detection.
+   `sortAdaptive2`) make sorted and reversed inputs linear, like driftsort's run detection; `scanFrom` /
+   `sortAdaptive3` fuse both checks into one verified scan (reversed 1M: 1.4 ms).
 5. What is left on the table: small-sort networks (`sort4_stable`/`sort8_stable` style, branchless
    `swap_if_less`; measured +5% at 10M), natural-run detection for *partially* sorted inputs, the run
    stack / powersort policy, and driftsort's stable-quicksort engine for unsorted runs (the real source of
@@ -50,4 +51,4 @@ Rust same-trick 47 / 555 · Rust plain 82 / 965 · driftsort 19 / 269 · `do`-no
 Simple 105 · UInt64Array 88 · Slice 92 · FastMerge 43 · Fast 70 · Correct 434 (10 s) · BottomUpMerge 39 ·
 BottomUp 54 · Runs 109 · BottomUpCorrect 252 (6.6 s) · InsertionList 44 · SmallRuns 65 ·
 SmallRunsCorrect 300 (2.5 s) · MergeBack 106 · Bidi 183 (17 s) · BidiSort 277 (7.3 s) · Blocked 246 (6.4 s) ·
-Adaptive 274 (2.8 s) · Export 10. Total 2791 lines, ~52 s clean build.
+Adaptive 420 (4 s) · Export 10. Total 2939 lines, ~55 s clean build.
