@@ -19,3 +19,6 @@ lean_exe sortdemo where
 
 lean_exe naturalruns where
   root := `NaturalRuns
+
+lean_exe genericbench where
+  root := `GenericBench

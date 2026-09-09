@@ -88,3 +88,14 @@ not as a run former for the cache-oblivious bottom-up passes.
 Pitfall found on the way (worth a tutorial paragraph): a loop
 that keeps its own reference to `src` while `sort8` sorts `src` in place makes every block copy the whole array
 (24 000 ms instead of 4.7 ms); returning both buffers as a pair (`sort8P`) fixes it, exactly like `Blocked.lean`.
+
+## Generic over the comparison: no loss, with one layout rule (`GenericBench.lean`, `lake exe genericbench`)
+Same three loops with the comparison abstracted (`MergeSort/Generic.lean`), 1M `u64`, ms:
+monomorphic `BottomUp.sort` 49.6 · `le` as a function argument with `@[specialize]` 78 · `le` from a type class
+instance with `@[specialize]` 78 · `le` as an opaque closure 390 · closure chosen at runtime 350 ·
+**generic loops with the specialised merge kernel instantiated in its own module (`GenericU64.lean`) 50.3**.
+The generated C of the specialised merge loop is identical to the monomorphic one; the 78 ms comes from clang
+inlining the merge loop into the pass loop when both specialised copies land in the same C file (Lean's
+`@[noinline]` does not reach C). Rule: `@[specialize]` the kernel on the comparison, instantiate it in its own
+module, and pass the kernel to the (also specialised) pass loop. Type-class or function argument makes no
+difference; an unspecialised closure costs 7×.

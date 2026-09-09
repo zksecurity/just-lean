@@ -24,6 +24,9 @@ states). No WASM. Bash snippets for the commands. One public repo = this project
 8. Benchmarks vs Rust (same algorithm, same tricks; plain; driftsort). `rust/`.
 9. Calling it from C with zero copies (`Export.lean`, `ffi/`), static binary.
 10. Side note: `Std.Do`/`mvcgen` and when `do`-loops are fine (one mutable value) vs not.
+11. Generic over the comparison (type class or function argument) at zero cost with `@[specialize]`, provided
+    the specialised kernel is instantiated in its own module (`Generic.lean`, `GenericU64.lean`,
+    `genericbench`: 50 vs 49.6 ms; same-module 78; unspecialised closure 390).
 
 Decision (2026-09-09, 15:05): Part 2's sort is `BottomUp.sort` (`BottomUp.lean` + `BottomUpMerge.lean`),
 with the branchless select in the main text. The top-down version gets one sentence ("a recursive variant
