@@ -9,14 +9,16 @@
   `sortAdaptive2` (sorted/reversed inputs in one pass).
 - `ffi/` C demo: C fills a `lean_sarray`, calls the exported sort, gets the same buffer sorted in place.
 - `rust/` comparison programs (plain, same-trick, same-algorithm, driftsort).
-- `../site-smoke/` Verso skeleton (3 parts, docstring roles, checked `#eval`, rendered proof states).
+- `../site-smoke/` Verso skeleton (3 parts, docstring roles, an inline definition with `termination_by`,
+  checked `#eval` output, tactic proof states rendered, plain command blocks). Builds in ~1.5 min incl. Verso.
 - `README.md` (numbers, 10 lessons, TCB), `PLAN.md` (tutorial chapters).
 
 ## Numbers (ms, 1M / 10M random u64)
 sortAdaptive2/sortBlocked 30 / 364 · Rust same algorithm 29 / 366 · driftsort 19 / 271 ·
 sort2 30–34 / 410–500 · sort16 46 / 568 · BottomUp.sort 48 / 600 · Fast.sort 68 / 780 ·
 Rust plain merge sort 82 / 965 · do-notation version 1010 / 13072.
-Presorted 1M: 0.5 ms (Rust 0.4). Peak RSS 10M: 167 MB (Rust 119 MB).
+Presorted 1M: 0.5 ms (Rust 0.4); reversed 1M: 0.9 ms. 1k elements: 0.021 ms (driftsort 0.017).
+Peak RSS 10M: 167 MB (Rust 119 MB). Clean build of all proofs: 52 s.
 
 ## Answers
 - Bullet 2 target ("as fast as plain idiomatic Rust merge sort"): exceeded 2.7× with the same-trick
