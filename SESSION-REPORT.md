@@ -55,7 +55,7 @@ is its biggest lever on realistic data. Part 3 design in `PLAN.md` builds run de
 
 ## Natural-run prototype (Part 3 steps 1–3; `NaturalRuns.lean`: total, no `partial`, no `sorry`; run detection and every merge are the verified `findRun` / `mergeKernelS`, only the run-collection and level loops lack specs)
 1M ms, hybrid vs driftsort: random 30 vs 19 · 8 runs 5.5 vs 7.3 · sawtooth 16 vs 23 · reversed 2.1 vs 0.6 ·
-1% swaps 30–37 vs 14. All outputs exact. Details and lessons in `PLAN.md` (Part 3 design).
+1% swaps 30–37 vs 14. `naturalruns verify`: 3990 sorts over 38 sizes × 3 seeds × 5 shapes, 0 mismatches (part of `check.sh`). Details and lessons in `PLAN.md` (Part 3 design).
 
 ## Verified Part 3 building block: `MergeSort/SkipMerge.lean`
 `mergeKernelS` = `mergeKernel` with the driftsort-style fast path (runs already in order ⇒ verified

@@ -183,7 +183,32 @@ def shapeOf (shape : String) (n : Nat) (xs0 : Array UInt64) : Array UInt64 :=
   else if shape == "reversed" then xs0.qsort (· < ·) |>.reverse
   else xs0
 
+/-- Cross-check `sortNatural` / `sortHybrid` against the reference on many sizes, seeds and shapes. -/
+def verifyAll : IO Unit := do
+  let sizes : List Nat := [0, 1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 100, 127, 128, 129, 255, 256,
+    257, 500, 1000, 1023, 1024, 1025, 4095, 4096, 4097, 10000, 16383, 16384, 16385, 100000, 200000]
+  let shapes := ["random", "runs8", "swaps1", "sawtooth", "reversed"]
+  let mut bad := 0
+  let mut count := 0
+  for n in sizes do
+    for seed in [1, 2, 3] do
+      for shape in shapes do
+        let xs := shapeOf shape n (gen n seed.toUInt64)
+        let ref := xs.qsort (· < ·)
+        let us := UInt64Array.ofArray xs
+        for minRun in [1, 2, 32] do
+          count := count + 2
+          if (NR.sortNatural minRun us).toArray != ref then
+            bad := bad + 1; IO.println s!"MISMATCH sortNatural minRun={minRun} n={n} seed={seed} shape={shape}"
+          if (NR.sortHybrid minRun us).toArray != ref then
+            bad := bad + 1; IO.println s!"MISMATCH sortHybrid minRun={minRun} n={n} seed={seed} shape={shape}"
+        count := count + 1
+        if (NR.sortNaturalB 256 us).toArray != ref then
+          bad := bad + 1; IO.println s!"MISMATCH sortNaturalB n={n} seed={seed} shape={shape}"
+  IO.println s!"naturalruns verify: {count} sorts over {sizes.length} sizes x 3 seeds x {shapes.length} shapes; mismatches: {bad}"
+
 def main (args : List String) : IO Unit := do
+  if args.contains "verify" then verifyAll; return
   let n := (args.head? >>= String.toNat?).getD 1000000
   for shape in ["random", "runs8", "swaps1", "sawtooth", "reversed"] do
     let xs := shapeOf shape n (gen n 42)
