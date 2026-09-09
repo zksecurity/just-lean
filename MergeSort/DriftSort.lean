@@ -318,7 +318,8 @@ def createRun (v s : A) (lo hi minGood : UInt64) (eager : Bool)
     have ee : (e - lo).toNat = e.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by omega))
     if h : minGood ≤ e - lo then
       have h := UInt64.le_iff_toNat_le.mp h
-      ⟨(mkSorted (e - lo), v1, s), hv1, rfl, by rw [ee]; omega, by rw [ee]; omega⟩
+      ⟨(mkSorted (e - lo), v1, s), hv1, rfl, by show 0 < (e - lo).toNat; rw [ee]; omega,
+        by show lo.toNat + (e - lo).toNat ≤ hi.toNat; rw [ee]; omega⟩
     else
       let ⟨r, hr1, hr2, hr3, hr4⟩ := createRunRest v1 s lo hi minGood eager (by rw [hv1]; exact hv) hs (by rw [hv1]; exact hvsz) hssz hlo hmg
       ⟨r, hr1.trans hv1, hr2, hr3, hr4⟩
