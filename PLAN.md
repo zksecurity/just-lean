@@ -93,6 +93,8 @@ is shorter than 32 (the scan costs 0.2–0.7 ms at 1M). Every output was checked
 | reversed | 29 | 2.1 | 0.6 |
 | sorted + 1% swaps | 30 | 37 (insertion to 32) / 30 (blockPasses to 4096) | 14 |
 
+At 100k (ms, hybrid vs driftsort): random 2.4 vs 1.6 · 8 runs 0.43 vs 0.71 · sawtooth 1.10 vs 1.54 · reversed 0.10 vs 0.05 ·
+1% swaps 2.7 vs 1.5.
 At 10M (ms): 8 runs 57 vs driftsort 97 · sawtooth 273 vs 268 · reversed 23 vs 9 · random 390 vs 270 ·
 1% swaps 444 vs (driftsort n/a, `sortBlocked` 367).
 
