@@ -4,15 +4,18 @@ import MergeSort.Runs
 namespace MergeSort.BottomUp
 open UInt64Array MergeSort.Fast
 
+-- ANCHOR: mergeLoop_spec
 /-- What the merge loop does to `dst[lo, hi)`; `src` is only read. -/
 theorem mergeLoop_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
     ∀ (n : Nat) (i j k : UInt64) (dst : UInt64Array) hsz hs hd hmid hi' hj hinv,
     n = hi.toNat - k.toNat → lo ≤ k.toNat →
     (mergeLoop mid hi i j k src dst hsz hs hd hmid hi' hj hinv).1.slice lo (hi.toNat - lo) =
       dst.slice lo (k.toNat - lo) ++
-        merge le64 (src.slice i.toNat (mid.toNat - i.toNat)) (src.slice j.toNat (hi.toNat - j.toNat)) ∧
+        merge (src.slice i.toNat (mid.toNat - i.toNat)) (src.slice j.toNat (hi.toNat - j.toNat)) ∧
     ∀ x, (x < k.toNat ∨ hi.toNat ≤ x) →
-      (mergeLoop mid hi i j k src dst hsz hs hd hmid hi' hj hinv).1.at' x = dst.at' x := by
+      (mergeLoop mid hi i j k src dst hsz hs hd hmid hi' hj hinv).1.at' x = dst.at' x
+-- ANCHOR_END: mergeLoop_spec
+    := by
   intro n
   induction n using Nat.strongRecOn with
   | _ n ih =>
@@ -108,13 +111,16 @@ theorem mergeLoop_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
     omega
 
 
+-- ANCHOR: passLoop_spec
 /-- What one pass does: `dst[lo, n)` becomes the merged runs of `src[lo, n)`; nothing else changes. -/
 theorem passLoop_spec (n w : UInt64) (src : UInt64Array) (hw0 : 0 < w.toNat) :
     ∀ (m : Nat) (lo : UInt64) (dst : UInt64Array) hn hs hd hdsz hw, m = n.toNat - lo.toNat →
     (passLoop n w lo src dst hn hs hd hdsz hw).1.slice lo.toNat (n.toNat - lo.toNat) =
       mergeRuns w.toNat hw0 (src.slice lo.toNat (n.toNat - lo.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ n.toNat ≤ x) →
-      (passLoop n w lo src dst hn hs hd hdsz hw).1.at' x = dst.at' x := by
+      (passLoop n w lo src dst hn hs hd hdsz hw).1.at' x = dst.at' x
+-- ANCHOR_END: passLoop_spec
+    := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
@@ -198,12 +204,15 @@ theorem passLoop_spec (n w : UInt64) (src : UInt64Array) (hw0 : 0 < w.toNat) :
     refine ⟨?_, fun x _ => rfl⟩
     rw [show n.toNat - lo.toNat = 0 by omega, slice_zero, slice_zero, mergeRuns_of_length_le hw0 _ (by simp)]
 
+-- ANCHOR: widthLoop_spec
 /-- Doubling the run length until it covers the array yields a sorted permutation. -/
 theorem widthLoop_spec (n : UInt64) (hn2 : n.toNat < 2 ^ 62) :
     ∀ (m : Nat) (w : UInt64) (src dst : UInt64Array) hn hs hd hw, m = n.toNat - w.toNat →
     ChunkSorted w.toNat (by omega) (src.slice 0 n.toNat) →
-    Sorted le64 ((widthLoop n w src dst hn hs hd hw).1.slice 0 n.toNat) ∧
-    ((widthLoop n w src dst hn hs hd hw).1.slice 0 n.toNat).Perm (src.slice 0 n.toNat) := by
+    Sorted ((widthLoop n w src dst hn hs hd hw).1.slice 0 n.toNat) ∧
+    ((widthLoop n w src dst hn hs hd hw).1.slice 0 n.toNat).Perm (src.slice 0 n.toNat)
+-- ANCHOR_END: widthLoop_spec
+    := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
@@ -226,8 +235,11 @@ theorem widthLoop_spec (n : UInt64) (hn2 : n.toNat < 2 ^ 62) :
     have h : ¬ w.toNat < n.toNat := h
     exact ⟨sorted_of_chunkSorted _ (by simp; omega) hcs, List.Perm.refl _⟩
 
+-- ANCHOR: sort_sorted
 /-- The bottom-up sort produces a sorted list. -/
-theorem sort_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sort xs hsz).data.toList := by
+theorem sort_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sort xs hsz).data.toList
+-- ANCHOR_END: sort_sorted
+    := by
   rw [sort]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   obtain ⟨S, _⟩ := widthLoop_spec xs.size.toUInt64 (by omega) _ 1 xs (zeros xs.size) (by omega) hn (by simp [hn])
@@ -237,8 +249,11 @@ theorem sort_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (s
   rw [← slice_eq_toList, hs']
   exact S
 
+-- ANCHOR: sort_perm
 /-- The bottom-up sort produces a permutation of its input. -/
-theorem sort_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList := by
+theorem sort_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList
+-- ANCHOR_END: sort_perm
+    := by
   rw [sort]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   obtain ⟨_, P⟩ := widthLoop_spec xs.size.toUInt64 (by omega) _ 1 xs (zeros xs.size) (by omega) hn (by simp [hn])

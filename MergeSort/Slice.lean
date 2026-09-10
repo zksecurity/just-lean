@@ -5,9 +5,11 @@ namespace UInt64Array
 /-- Element `i`, or `0` out of range (a total function that is convenient in specifications). -/
 def at' (a : UInt64Array) (i : Nat) : UInt64 := a.data.getD i 0
 
+-- ANCHOR: slice
 /-- The list `[a[off], a[off+1], ..., a[off+len-1]]`. -/
 def slice (a : UInt64Array) (off len : Nat) : List UInt64 :=
   (List.range len).map (fun t => a.at' (off + t))
+-- ANCHOR_END: slice
 
 theorem at'_eq_get (a : UInt64Array) (i : UInt64) (h : i.toNat < a.size) : a.at' i.toNat = a.get i h := by
   simp [at', get, Array.getD, h]
@@ -66,9 +68,12 @@ theorem slice_congr {a b : UInt64Array} {off len : Nat}
     (h : ∀ t, t < len → a.at' (off + t) = b.at' (off + t)) : a.slice off len = b.slice off len :=
   slice_congr' h
 
+-- ANCHOR: slice_set_of_not_mem
 /-- `slice` only depends on the elements in range: writing outside the range changes nothing. -/
 theorem slice_set_of_not_mem (a : UInt64Array) (i : UInt64) (v : UInt64) (hi) (off len : Nat)
-    (h : i.toNat < off ∨ off + len ≤ i.toNat) : (a.set i v hi).slice off len = a.slice off len := by
+    (h : i.toNat < off ∨ off + len ≤ i.toNat) : (a.set i v hi).slice off len = a.slice off len
+-- ANCHOR_END: slice_set_of_not_mem
+    := by
   apply slice_congr
   intro t ht
   rw [at'_set_ne]

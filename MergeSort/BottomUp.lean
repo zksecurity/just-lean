@@ -11,6 +11,7 @@ This is the fastest plain merge sort we found in Lean; it matches the same algor
 namespace MergeSort.BottomUp
 open UInt64Array
 
+-- ANCHOR: passLoop
 /-- One pass: merge the runs `[lo, lo+w)` and `[lo+w, lo+2w)` (clipped to `n`) from `src` into
     `dst`, then continue at `lo + 2w`. -/
 def passLoop (n w lo : UInt64) (src dst : UInt64Array)
@@ -30,7 +31,9 @@ def passLoop (n w lo : UInt64) (src dst : UInt64Array)
   else ⟨dst, rfl⟩
 termination_by n.toNat - lo.toNat
 decreasing_by u64
+-- ANCHOR_END: passLoop
 
+-- ANCHOR: widthLoop
 /-- Double the run length until it covers the array; the result is the buffer that was last
     written (or `src` itself if nothing had to be done). -/
 def widthLoop (n w : UInt64) (src dst : UInt64Array)
@@ -44,11 +47,14 @@ def widthLoop (n w : UInt64) (src dst : UInt64Array)
   else ⟨src, rfl⟩
 termination_by n.toNat - w.toNat
 decreasing_by u64
+-- ANCHOR_END: widthLoop
 
+-- ANCHOR: sort
 /-- Bottom-up merge sort of an unboxed `UInt64` array, in place (plus one scratch buffer). -/
 def sort (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
   let n : UInt64 := xs.size.toUInt64
   have hn : n.toNat = xs.size := by simp [n]; omega
   (widthLoop n 1 xs (zeros xs.size)).1
+-- ANCHOR_END: sort
 
 end MergeSort.BottomUp

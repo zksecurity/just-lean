@@ -47,8 +47,8 @@ decreasing_by u64
 /-! ## List-level unfolding of the two directions -/
 
 theorem take_merge_cons_cons (n : Nat) (x y : UInt64) (xs ys : List UInt64) :
-    (merge le64 (x :: xs) (y :: ys)).take (n + 1) =
-      if x ≤ y then x :: (merge le64 xs (y :: ys)).take n else y :: (merge le64 (x :: xs) ys).take n := by
+    (merge (x :: xs) (y :: ys)).take (n + 1) =
+      if x ≤ y then x :: (merge xs (y :: ys)).take n else y :: (merge (x :: xs) ys).take n := by
   rw [merge_cons_cons]; split <;> simp
 
 theorem take_mergeBack_cons_cons (n : Nat) (x y : UInt64) (xs ys : List UInt64) :
@@ -68,7 +68,7 @@ theorem mergeBidi_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
     m = cnt.toNat → lo ≤ k.toNat → lo + cnt.toNat ≤ i'.toNat →
     (mergeBidi mid hi i j k i' j' k' cnt src dst hsz hs hd hmid hi1 hj1 hi2 hj2 hk1 hk2).1.slice lo (mid.toNat - lo) =
       dst.slice lo (k.toNat - lo) ++
-        (merge le64 (src.slice i.toNat (mid.toNat - i.toNat)) (src.slice j.toNat (hi.toNat - j.toNat))).take cnt.toNat ∧
+        (merge (src.slice i.toNat (mid.toNat - i.toNat)) (src.slice j.toNat (hi.toNat - j.toNat))).take cnt.toNat ∧
     (mergeBidi mid hi i j k i' j' k' cnt src dst hsz hs hd hmid hi1 hj1 hi2 hj2 hk1 hk2).1.slice mid.toNat (hi.toNat - mid.toNat) =
       ((mergeBack (src.slice lo (i'.toNat - lo)).reverse (src.slice mid.toNat (j'.toNat - mid.toNat)).reverse).take cnt.toNat).reverse ++
         dst.slice k'.toNat (hi.toNat - k'.toNat) ∧

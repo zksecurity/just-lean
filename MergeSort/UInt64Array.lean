@@ -14,11 +14,13 @@ operation is an `extern` that works on the flat buffer.
     exist). It is the default tactic for every bounds proof, so call sites can omit them. -/
 syntax "u64" : tactic
 
+-- ANCHOR: UInt64Array
 /-- An unboxed array of `UInt64`. The field is the *model* used by proofs; at runtime the value is a
     flat `lean_sarray` of 8-byte elements, and every operation below is implemented by inline C. -/
 structure UInt64Array where
   /-- The model: the elements as an ordinary `Array`. Never used at runtime. -/
   data : Array UInt64
+-- ANCHOR_END: UInt64Array
 
 attribute [extern "u64array_mk"] UInt64Array.mk
 attribute [extern "u64array_data"] UInt64Array.data
@@ -28,18 +30,24 @@ namespace UInt64Array
 @[extern c inline "lean_box(lean_sarray_size(#1))", reducible]
 def size (a : @& UInt64Array) : Nat := a.data.size
 
+-- ANCHOR: get
 /-- Read element `i`. No bounds check at runtime: the proof `h` is the bounds check. -/
 @[extern c inline "((uint64_t*)lean_sarray_cptr(#1))[#2]"]
 def get (a : @& UInt64Array) (i : UInt64) (h : i.toNat < a.size := by u64) : UInt64 := a.data[i.toNat]
+-- ANCHOR_END: get
 
+-- ANCHOR: set
 /-- Write element `i`. In place if `a` is unshared, otherwise copy-on-write. -/
 @[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); ((uint64_t*)lean_sarray_cptr(_a))[#2] = #3; _a; })"]
 def set (a : UInt64Array) (i : UInt64) (v : UInt64) (h : i.toNat < a.size := by u64) : UInt64Array :=
   ⟨a.data.set i.toNat v h⟩
+-- ANCHOR_END: set
 
+-- ANCHOR: zeros
 /-- A zero-filled array of length `n`. -/
 @[extern c inline "({ size_t _n = lean_unbox(#1); lean_object* _a = lean_alloc_sarray(8, _n, _n); __builtin_memset(lean_sarray_cptr(_a), 0, 8 * _n); _a; })"]
 def zeros (n : @& Nat) : UInt64Array := ⟨Array.replicate n 0⟩
+-- ANCHOR_END: zeros
 
 @[simp] theorem size_set (a : UInt64Array) (i : UInt64) (v : UInt64) (h) :
     (a.set i v h).size = a.size := Array.size_set h

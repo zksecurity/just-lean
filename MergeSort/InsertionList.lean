@@ -20,7 +20,7 @@ theorem insertSorted_perm (x : UInt64) (l : List UInt64) : (insertSorted x l).Pe
 theorem mem_insertSorted {a x : UInt64} {l : List UInt64} : a ∈ insertSorted x l ↔ a = x ∨ a ∈ l := by
   rw [(insertSorted_perm x l).mem_iff, List.mem_cons]
 
-theorem insertSorted_sorted (x : UInt64) (l : List UInt64) (hl : Sorted le64 l) : Sorted le64 (insertSorted x l) := by
+theorem insertSorted_sorted (x : UInt64) (l : List UInt64) (hl : Sorted l) : Sorted (insertSorted x l) := by
   induction l with
   | nil => simp [insertSorted, Sorted]
   | cons y l ih =>

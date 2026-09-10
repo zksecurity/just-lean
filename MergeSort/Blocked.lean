@@ -106,7 +106,7 @@ theorem twoPasses_spec (w lo hi : UInt64) (src dst : UInt64Array) hhi hs hd hssz
 theorem blockPasses_spec (B lo hi : UInt64) :
     ∀ (m : Nat) (w : UInt64) (src dst : UInt64Array) hhi hs hd hssz hdsz hw hB hlo hlen, m = B.toNat - w.toNat →
     ChunkSorted w.toNat (by omega) (src.slice lo.toNat (hi.toNat - lo.toNat)) →
-    Sorted le64 ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB hlo hlen).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB hlo hlen).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((blockPasses w B lo hi src dst hhi hs hd hssz hdsz hw hB hlo hlen).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (src.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) →
@@ -212,7 +212,7 @@ theorem blocksLoop_spec (B n : UInt64) (hB0 : 0 < B.toNat) :
     · exact List.Perm.refl _
 
 theorem sortBlockedB_sorted (B : UInt64) (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) (hB : 1 ≤ B.toNat ∧ B.toNat < 2 ^ 61) :
-    Sorted le64 (sortBlockedB B xs hsz hB).data.toList := by
+    Sorted (sortBlockedB B xs hsz hB).data.toList := by
   rw [sortBlockedB]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   let A := blocksLoop B xs.size.toUInt64 0 xs (zeros xs.size) (by omega) (by omega) (by simp; omega) (by omega) (by simp; omega) hB
@@ -244,7 +244,7 @@ theorem sortBlockedB_perm (B : UInt64) (xs : UInt64Array) (hsz : xs.size < 2 ^ 6
   rw [← slice_eq_toList, hs', ← exs]
   exact P.trans C2
 
-theorem sortBlocked_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortBlocked xs hsz).data.toList :=
+theorem sortBlocked_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sortBlocked xs hsz).data.toList :=
   sortBlockedB_sorted 16384 xs hsz _
 
 theorem sortBlocked_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sortBlocked xs hsz).data.toList.Perm xs.data.toList :=

@@ -34,9 +34,10 @@ cd lab/rust && cargo run --release -- 1000000 [shape]   # the Rust comparison pr
 
 ## The site
 
-`site/` is a [Verso](https://github.com/leanprover/verso) manual that depends on this package. Every
-Lean block is elaborated against the library when the site is built, the Part 1 program is compiled
-and run, and source excerpts are read from the files in this repository.
+`site/` is a [Verso](https://github.com/leanprover/verso) manual that depends on this package. The
+code on its pages is taken from anchored regions (`-- ANCHOR: name`) of the files in this repository,
+highlighted with hovers and proof states by SubVerso (which is why this package depends on it), and
+checked to match; the Part 1 program is compiled and run while the site is built.
 
 ```
 cd site

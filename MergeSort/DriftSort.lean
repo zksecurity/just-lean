@@ -522,6 +522,7 @@ def driftSortFull (v s : A) (lo hi scratchLen : UInt64) (hv : hi.toNat ≤ v.siz
 
 def maxLenAlwaysInsertion : UInt64 := 20
 
+-- ANCHOR: sort
 /-- driftsort for `u64`, bounds-safe. An input that is one natural run (sorted, or descending and
     reversed in place) needs no scratch buffer; everything else gets one of the same size. -/
 def sort (xs : A) (hsz : xs.size < 2 ^ 62) : A :=
@@ -540,5 +541,6 @@ def sort (xs : A) (hsz : xs.size < 2 ^ 62) : A :=
       let eager := n ≤ smallSortThreshold * 2
       if eager then (driftSortEager xs1 s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
       else (driftSortFull xs1 s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
+-- ANCHOR_END: sort
 
 end DriftSort

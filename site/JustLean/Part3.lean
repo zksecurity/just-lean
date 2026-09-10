@@ -6,9 +6,11 @@ import MergeSort.DriftCorrectLoop
 open Verso.Genre Manual
 open Verso.Genre.Manual.InlineLean
 open JustLean
+open Verso.Code.External
 
 set_option pp.rawOnError true
 set_option verso.code.warnLineLength 0
+set_option verso.exampleProject ".."
 
 #doc (Manual) "Part 3: Vec::sort territory" =>
 
@@ -74,7 +76,28 @@ Four ideas account for the difference.
   networks and insertion, then merged bidirectionally.
 
 The Rust source is about 1900 lines across four files. The Lean version, {name}`DriftSort.sort`, is a
-line-by-line translation of it for `u64` in which every array access carries its bounds proof.
+line-by-line translation of it for `u64` in which every array access carries its bounds proof:
+
+```anchor sort (module := MergeSort.DriftSort)
+/-- driftsort for `u64`, bounds-safe. An input that is one natural run (sorted, or descending and
+    reversed in place) needs no scratch buffer; everything else gets one of the same size. -/
+def sort (xs : A) (hsz : xs.size < 2 ^ 62) : A :=
+  let n : UInt64 := xs.size.toUInt64
+  have hn : n.toNat = xs.size := by simp [n]; omega
+  if h2 : n < 2 then xs
+  else if n ≤ maxLenAlwaysInsertion then (insertionSortRange 0 n 0 xs (by omega) (by omega) (by simp)).1
+  else
+    have h2 : 2 ≤ n.toNat := by have := UInt64.not_lt.mp h2; have := UInt64.le_iff_toNat_le.mp this; simpa using this
+    let ⟨(e, xs1), _, _, hxs1⟩ := findRun 0 n xs (by omega) (by omega) (by simp; omega)
+    have hxs1' : xs1.size = xs.size := hxs1
+    if e = n then xs1
+    else
+      let s := zeros xs.size
+      have hs : s.size = xs.size := by simp [s]
+      let eager := n ≤ smallSortThreshold * 2
+      if eager then (driftSortEager xs1 s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
+      else (driftSortFull xs1 s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
+```
 
 # The proof
 %%%
@@ -95,7 +118,12 @@ Three invariants carry the proof.
 * The run stack tiles the array from the scan position downward, and every run marked sorted is
   sorted:
 
-{src DriftSort.RunsOK}
+```anchor RunsOK (module := MergeSort.DriftCorrectLoop)
+/-- `RunsOK rs e a`: the runs `rs` (top first) tile `a` downward from position `e`; the sorted ones are sorted. -/
+def RunsOK : List Run → Nat → A → Prop
+  | [], _, _ => True
+  | r :: rs, e, a => r.len.toNat ≤ e ∧ (r.sorted = true → Sorted (a.slice (e - r.len.toNat) r.len.toNat)) ∧ RunsOK rs (e - r.len.toNat) a
+```
 
 * The quicksort is proved generic in the range sorter it falls back to (`QuickSpec`), and its
   precondition is the pivot of the left ancestor: every element of the range is at least that value,
@@ -103,9 +131,15 @@ Three invariants carry the proof.
 
 The two theorems about the entry point are the same as Part 2's:
 
-{sig DriftSort.sort_sorted}
+```anchor sort_sorted (module := MergeSort.DriftCorrectLoop)
+/-- The bounds-safe driftsort returns a sorted array. -/
+theorem sort_sorted (xs : A) (hsz : xs.size < 2 ^ 62) : Sorted (sort xs hsz).data.toList
+```
 
-{sig DriftSort.sort_perm}
+```anchor sort_perm (module := MergeSort.DriftCorrectLoop)
+/-- The bounds-safe driftsort returns a permutation of its input. -/
+theorem sort_perm (xs : A) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList
+```
 
 Both depend on `propext`, `Classical.choice` and `Quot.sound` only; `check.sh` prints the axioms of
 every theorem in the repository.

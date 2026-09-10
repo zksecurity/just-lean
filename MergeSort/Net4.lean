@@ -27,10 +27,10 @@ def net4 (a b c d : UInt64) : List UInt64 :=
   let c3 := mx c2 b2
   [a2, b3, c3, d2]
 
-theorem net4_sorted (a b c d : UInt64) : Sorted le64 (net4 a b c d) := by
+theorem net4_sorted (a b c d : UInt64) : Sorted (net4 a b c d) := by
   unfold net4 mn mx
-  simp only [Sorted, le64, List.pairwise_cons, List.mem_cons, List.not_mem_nil,
-    List.Pairwise.nil, decide_eq_true_eq, forall_eq_or_imp, forall_eq, and_true, or_false]
+  simp only [Sorted, List.pairwise_cons, List.mem_cons, List.not_mem_nil,
+    List.Pairwise.nil, forall_eq_or_imp, forall_eq, and_true, or_false]
   repeat' split
   all_goals (simp only [UInt64.le_iff_toNat_le, Nat.not_le, false_implies, implies_true, and_true] at *; omega)
 
@@ -114,7 +114,7 @@ def sort8 (lo : UInt64) (src dst : UInt64Array) (hssz : src.size < 2 ^ 64 := by 
   mergeKernel lo (lo + 4) (lo + 8) r2.1 dst hdsz (by rw [r2.2, r1.2]; omega) (by omega) (by omega) (by omega)
 
 theorem sort8_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
-    Sorted le64 ((sort8 lo src dst hssz hdsz hs hd).1.slice lo.toNat 8) ∧
+    Sorted ((sort8 lo src dst hssz hdsz hs hd).1.slice lo.toNat 8) ∧
     ((sort8 lo src dst hssz hdsz hs hd).1.slice lo.toNat 8).Perm (src.slice lo.toNat 8) ∧
     ∀ x, (x < lo.toNat ∨ lo.toNat + 8 ≤ x) → (sort8 lo src dst hssz hdsz hs hd).1.at' x = dst.at' x := by
   have e4 : (lo + 4).toNat = lo.toNat + 4 := by u64g
@@ -133,9 +133,9 @@ theorem sort8_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
   have R : (sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4 =
       net4 (src.at' (lo.toNat + 4)) (src.at' (lo.toNat + 4 + 1)) (src.at' (lo.toNat + 4 + 2)) (src.at' (lo.toNat + 4 + 3)) := by
     rw [A2, e4]; congr 1 <;> exact F1 _ (Or.inr (by omega))
-  have hL : Sorted le64 ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4) := by
+  have hL : Sorted ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4) := by
     rw [L]; exact net4_sorted _ _ _ _
-  have hR : Sorted le64 ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4) := by
+  have hR : Sorted ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4) := by
     rw [R]; exact net4_sorted _ _ _ _
   obtain ⟨M, FM⟩ := mergeKernel_spec lo (lo + 4) (lo + 8) _ dst hdsz (by rw [h2, h1]; omega) (by omega) (by omega) (by omega)
     (by rw [show (lo + 4).toNat - lo.toNat = 4 by omega]; exact hL)
@@ -143,13 +143,13 @@ theorem sort8_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
   rw [show (lo + 4).toNat - lo.toNat = 4 by omega, show (lo + 8).toNat - (lo + 4).toNat = 4 by omega,
     show (lo + 8).toNat - lo.toNat = 8 by omega] at M
   refine ⟨?_, ?_, fun x hx => FM x (by rcases hx with hx | hx; exact Or.inl hx; exact Or.inr (by omega))⟩
-  · have S := merge_sorted le64 le64_trans le64_total hL hR
+  · have S := merge_sorted le64_trans le64_total hL hR
     rwa [← M] at S
-  · have P : (merge le64 ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4)
+  · have P : (merge ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice lo.toNat 4)
         ((sort4 (lo + 4) (sort4 lo src hssz (by omega)).1 (by rw [h1]; exact hssz) (by rw [h1]; omega)).1.slice (lo + 4).toNat 4)).Perm
         (src.slice lo.toNat 8) := by
       rw [show (8 : Nat) = 4 + 4 from rfl, slice_add src]
-      refine (merge_perm le64 _ _).trans (List.Perm.append ?_ ?_)
+      refine (merge_perm _ _).trans (List.Perm.append ?_ ?_)
       · rw [L, slice_four]; exact net4_perm _ _ _ _
       · rw [R, slice_four]; exact net4_perm _ _ _ _
     rwa [← M] at P
@@ -168,7 +168,7 @@ def sort8P (lo : UInt64) (src dst : UInt64Array) (hssz : src.size < 2 ^ 64 := by
   ⟨(r2.1, m.1), r2.2.trans r1.2, m.2⟩
 
 theorem sort8P_spec (lo : UInt64) (src dst : UInt64Array) hssz hdsz hs hd :
-    Sorted le64 ((sort8P lo src dst hssz hdsz hs hd).1.2.slice lo.toNat 8) ∧
+    Sorted ((sort8P lo src dst hssz hdsz hs hd).1.2.slice lo.toNat 8) ∧
     ((sort8P lo src dst hssz hdsz hs hd).1.2.slice lo.toNat 8).Perm (src.slice lo.toNat 8) ∧
     ∀ x, (x < lo.toNat ∨ lo.toNat + 8 ≤ x) → (sort8P lo src dst hssz hdsz hs hd).1.2.at' x = dst.at' x := by
   have := sort8_spec lo src dst hssz hdsz hs hd

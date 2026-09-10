@@ -17,7 +17,7 @@ theorem mergeBack_nil_right (xs : List UInt64) : mergeBack xs [] = xs := by case
 
 /-- If every element of both runs is `≤ y`, the stable merge puts a trailing `y` of the right run last. -/
 theorem merge_append_right (L R : List UInt64) (y : UInt64) (hL : ∀ l ∈ L, l ≤ y) (hR : ∀ r ∈ R, r ≤ y) :
-    merge le64 L (R ++ [y]) = merge le64 L R ++ [y] := by
+    merge L (R ++ [y]) = merge L R ++ [y] := by
   induction L generalizing R with
   | nil => simp [merge_nil_left]
   | cons l L ihL =>
@@ -38,7 +38,7 @@ theorem merge_append_right (L R : List UInt64) (y : UInt64) (hL : ∀ l ∈ L, l
 /-- If every element of the right run is `< x` and of the left run `≤ x`, a trailing `x` of the
     left run comes last. -/
 theorem merge_append_left (L R : List UInt64) (x : UInt64) (hL : ∀ l ∈ L, l ≤ x) (hR : ∀ r ∈ R, r < x) :
-    merge le64 (L ++ [x]) R = merge le64 L R ++ [x] := by
+    merge (L ++ [x]) R = merge L R ++ [x] := by
   induction L generalizing R with
   | nil =>
     induction R with
@@ -65,7 +65,7 @@ def Desc (l : List UInt64) : Prop := l.Pairwise (fun a b => b ≤ a)
 
 /-- The stable merge of two sorted runs is the reverse of `mergeBack` on the reversed runs. -/
 theorem merge_reverse_eq_reverse_mergeBack (L' R' : List UInt64) (hL : Desc L') (hR : Desc R') :
-    merge le64 L'.reverse R'.reverse = (mergeBack L' R').reverse := by
+    merge L'.reverse R'.reverse = (mergeBack L' R').reverse := by
   induction L', R' using mergeBack.induct with
   | case1 R' => simp [merge_nil_left, mergeBack_nil_left]
   | case2 L' h => simp [merge_nil_right, mergeBack_nil_right]
@@ -93,8 +93,8 @@ theorem merge_reverse_eq_reverse_mergeBack (L' R' : List UInt64) (hL : Desc L') 
     rw [← List.reverse_cons, ih hxs.2 hR]
 
 /-- The back half of a merge is what a merge from the back produces (reversed). -/
-theorem drop_merge_eq (L R : List UInt64) (hL : Sorted le64 L) (hR : Sorted le64 R) (w : Nat) :
-    (merge le64 L R).drop w = ((mergeBack L.reverse R.reverse).take ((merge le64 L R).length - w)).reverse := by
+theorem drop_merge_eq (L R : List UInt64) (hL : Sorted L) (hR : Sorted R) (w : Nat) :
+    (merge L R).drop w = ((mergeBack L.reverse R.reverse).take ((merge L R).length - w)).reverse := by
   have hL' : Desc L.reverse := by
     simp only [Desc]; rw [List.pairwise_reverse]; simpa [Sorted] using hL
   have hR' : Desc R.reverse := by

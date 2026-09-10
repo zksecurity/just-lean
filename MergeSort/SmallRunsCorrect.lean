@@ -10,7 +10,7 @@ def insertAll (acc : List UInt64) : List UInt64 → List UInt64
   | [] => acc
   | x :: l => insertAll (insertSorted x acc) l
 
-theorem insertAll_sorted (acc l : List UInt64) (h : Sorted le64 acc) : Sorted le64 (insertAll acc l) := by
+theorem insertAll_sorted (acc l : List UInt64) (h : Sorted acc) : Sorted (insertAll acc l) := by
   induction l generalizing acc with
   | nil => simpa [insertAll]
   | cons x l ih => exact ih _ (insertSorted_sorted x acc h)
@@ -41,7 +41,7 @@ theorem insertSorted_of_last_le (x y : UInt64) (l : List UInt64) (hyx : y ≤ x)
     simp only [List.cons_append, insertSorted, hzx, ite_false]
     rw [ih (fun w hw => hl w (List.mem_cons_of_mem z hw))]
 
-theorem sorted_last_le (l : List UInt64) (y : UInt64) (h : Sorted le64 (l ++ [y])) : ∀ z ∈ l, z ≤ y := by
+theorem sorted_last_le (l : List UInt64) (y : UInt64) (h : Sorted (l ++ [y])) : ∀ z ∈ l, z ≤ y := by
   intro z hz
   have := List.pairwise_append.mp h
   simpa using this.2.2 z hz y (List.mem_singleton.mpr rfl)
@@ -49,7 +49,7 @@ theorem sorted_last_le (l : List UInt64) (y : UInt64) (h : Sorted le64 (l ++ [y]
 /-- `insertLoop` inserts `a[k]` into the sorted run `a[lo, k)`. -/
 theorem insertLoop_spec (lo : UInt64) :
     ∀ (m : Nat) (k : UInt64) (a : UInt64Array) hsz hk hlo, m = k.toNat →
-    Sorted le64 (a.slice lo.toNat (k.toNat - lo.toNat)) →
+    Sorted (a.slice lo.toNat (k.toNat - lo.toNat)) →
     (insertLoop lo k a hsz hk hlo).1.slice lo.toNat (k.toNat + 1 - lo.toNat) =
       insertSorted (a.at' k.toNat) (a.slice lo.toNat (k.toNat - lo.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ k.toNat < x) → (insertLoop lo k a hsz hk hlo).1.at' x = a.at' x := by
@@ -124,7 +124,7 @@ theorem insertLoop_spec (lo : UInt64) :
 /-- `insertionSortRange`: the run `[lo, hi)` becomes the insertion sort of its contents. -/
 theorem insertionSortRange_spec (lo hi : UInt64) :
     ∀ (m : Nat) (k : UInt64) (a : UInt64Array) hsz hhi hlo, m = hi.toNat - k.toNat → k.toNat ≤ hi.toNat →
-    Sorted le64 (a.slice lo.toNat (k.toNat - lo.toNat)) →
+    Sorted (a.slice lo.toNat (k.toNat - lo.toNat)) →
     (insertionSortRange lo hi k a hsz hhi hlo).1.slice lo.toNat (hi.toNat - lo.toNat) =
       insertAll (a.slice lo.toNat (k.toNat - lo.toNat)) (a.slice k.toNat (hi.toNat - k.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (insertionSortRange lo hi k a hsz hhi hlo).1.at' x = a.at' x := by
@@ -211,7 +211,7 @@ theorem sortBlocks_spec (n w : UInt64) (hw0 : 0 < w.toNat) :
       · rw [hH, show n.toNat - n.toNat = 0 by omega, show n.toNat - (lo + w).toNat = 0 by omega, slice_zero, slice_zero]
     have hBrest : Bs.1.slice HI.toNat (n.toNat - HI.toNat) = a.slice HI.toNat (n.toNat - HI.toNat) := by
       apply slice_congr; intro t ht; exact HB2 _ (Or.inr (by omega))
-    have hBblockSorted : Sorted le64 (Bs.1.slice lo.toNat (HI.toNat - lo.toNat)) := by
+    have hBblockSorted : Sorted (Bs.1.slice lo.toNat (HI.toNat - lo.toNat)) := by
       rw [HB1]; exact insertAll_sorted _ _ (by simp [Sorted])
     have hBblockPerm : (Bs.1.slice lo.toNat (HI.toNat - lo.toNat)).Perm (a.slice lo.toNat (HI.toNat - lo.toNat)) := by
       rw [HB1]; simpa using insertAll_perm [] _
@@ -244,7 +244,7 @@ theorem sortBlocks_spec (n w : UInt64) (hw0 : 0 < w.toNat) :
     · rw [show n.toNat - lo.toNat = 0 by omega, slice_zero, chunkSorted_of_length_le _ (by simp)]; simp [Sorted]
     · exact List.Perm.refl _
 
-theorem sort16_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sort16 xs hsz).data.toList := by
+theorem sort16_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sort16 xs hsz).data.toList := by
   rw [sort16]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   split

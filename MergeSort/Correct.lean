@@ -22,11 +22,11 @@ macro "u64g" : tactic => `(tactic|
 @[simp] theorem castSize_val {a a' : UInt64Array} (r : { b : UInt64Array // b.size = a'.size })
     (h : a'.size = a.size) : (castSize r h).1 = r.1 := rfl
 
-theorem merge_nil_left (ys : List UInt64) : merge le64 [] ys = ys := by simp [merge]
-theorem merge_nil_right (xs : List UInt64) : merge le64 xs [] = xs := by cases xs <;> simp [merge]
+theorem merge_nil_left (ys : List UInt64) : merge [] ys = ys := by simp [merge]
+theorem merge_nil_right (xs : List UInt64) : merge xs [] = xs := by cases xs <;> simp [merge]
 theorem merge_cons_cons (x y : UInt64) (xs ys : List UInt64) :
-    merge le64 (x :: xs) (y :: ys) =
-      if x ≤ y then x :: merge le64 xs (y :: ys) else y :: merge le64 (x :: xs) ys := by
+    merge (x :: xs) (y :: ys) =
+      if x ≤ y then x :: merge xs (y :: ys) else y :: merge (x :: xs) ys := by
   simp [merge]
 
 /-- Writing at position `k` extends the already-written prefix `[lo, k)` by one element. -/
@@ -42,7 +42,7 @@ theorem mergeLoop_spec (s d mid hi : UInt64) (lo : Nat)
     n = hi.toNat - k.toNat → lo ≤ k.toNat →
     (mergeLoop s d mid hi i j k a hsz hs hd hmid hi' hj hinv).1.slice (d.toNat + lo) (hi.toNat - lo) =
       a.slice (d.toNat + lo) (k.toNat - lo) ++
-        merge le64 (a.slice (s.toNat + i.toNat) (mid.toNat - i.toNat))
+        merge (a.slice (s.toNat + i.toNat) (mid.toNat - i.toNat))
                    (a.slice (s.toNat + j.toNat) (hi.toNat - j.toNat)) ∧
     ∀ x, (x < d.toNat + k.toNat ∨ d.toNat + hi.toNat ≤ x) →
       (mergeLoop s d mid hi i j k a hsz hs hd hmid hi' hj hinv).1.at' x = a.at' x := by
@@ -166,12 +166,12 @@ theorem mergeLoop_spec (s d mid hi : UInt64) (lo : Nat)
 
 /-! ## The recursive structure -/
 
-theorem mergeSort_of_length_le_one (l : List UInt64) (h : l.length ≤ 1) : mergeSort le64 l = l := by
+theorem mergeSort_of_length_le_one (l : List UInt64) (h : l.length ≤ 1) : mergeSort l = l := by
   rw [mergeSort, dif_pos h]
 
 /-- `mergeSort` always equals "merge the sorted halves", even for short lists. -/
 theorem mergeSort_eq_merge (l : List UInt64) :
-    mergeSort le64 l = merge le64 (mergeSort le64 (l.take (l.length / 2))) (mergeSort le64 (l.drop (l.length / 2))) := by
+    mergeSort l = merge (mergeSort (l.take (l.length / 2))) (mergeSort (l.drop (l.length / 2))) := by
   by_cases h : l.length ≤ 1
   · have : l.length / 2 = 0 := by omega
     rw [this, List.take_zero, List.drop_zero, mergeSort_of_length_le_one l h,
@@ -183,14 +183,14 @@ theorem sortRange_combine (sN dN loN hiN midN : Nat) (a A₁ A₂ B : UInt64Arra
     (hmid : midN = loN + (hiN - loN) / 2) (hlo : loN ≤ hiN)
     (hdisj : sN + hiN ≤ dN ∨ dN + hiN ≤ sN)
     (hpre : a.slice (sN + loN) (hiN - loN) = a.slice (dN + loN) (hiN - loN))
-    (H1a : A₁.slice (sN + loN) (midN - loN) = mergeSort le64 (a.slice (dN + loN) (midN - loN)))
+    (H1a : A₁.slice (sN + loN) (midN - loN) = mergeSort (a.slice (dN + loN) (midN - loN)))
     (H1b : ∀ x, ¬ (sN + loN ≤ x ∧ x < sN + midN) → ¬ (dN + loN ≤ x ∧ x < dN + midN) → A₁.at' x = a.at' x)
-    (H2a : A₂.slice (sN + midN) (hiN - midN) = mergeSort le64 (A₁.slice (dN + midN) (hiN - midN)))
+    (H2a : A₂.slice (sN + midN) (hiN - midN) = mergeSort (A₁.slice (dN + midN) (hiN - midN)))
     (H2b : ∀ x, ¬ (sN + midN ≤ x ∧ x < sN + hiN) → ¬ (dN + midN ≤ x ∧ x < dN + hiN) → A₂.at' x = A₁.at' x)
     (HBa : B.slice (dN + loN) (hiN - loN) =
-      A₂.slice (dN + loN) (loN - loN) ++ merge le64 (A₂.slice (sN + loN) (midN - loN)) (A₂.slice (sN + midN) (hiN - midN)))
+      A₂.slice (dN + loN) (loN - loN) ++ merge (A₂.slice (sN + loN) (midN - loN)) (A₂.slice (sN + midN) (hiN - midN)))
     (HBb : ∀ x, (x < dN + loN ∨ dN + hiN ≤ x) → B.at' x = A₂.at' x) :
-    B.slice (dN + loN) (hiN - loN) = mergeSort le64 (a.slice (sN + loN) (hiN - loN)) ∧
+    B.slice (dN + loN) (hiN - loN) = mergeSort (a.slice (sN + loN) (hiN - loN)) ∧
     ∀ x, ¬ (sN + loN ≤ x ∧ x < sN + hiN) → ¬ (dN + loN ≤ x ∧ x < dN + hiN) → B.at' x = a.at' x := by
   have hm1 : loN ≤ midN := by omega
   have hm2 : midN ≤ hiN := by omega
@@ -217,7 +217,7 @@ theorem sortRange_spec :
     (s.toNat + hi.toNat ≤ d.toNat ∨ d.toNat + hi.toNat ≤ s.toNat) →
     a.slice (s.toNat + lo.toNat) (hi.toNat - lo.toNat) = a.slice (d.toNat + lo.toNat) (hi.toNat - lo.toNat) →
     (sortRange s d lo hi a hsz hs hd hlo).1.slice (d.toNat + lo.toNat) (hi.toNat - lo.toNat) =
-      mergeSort le64 (a.slice (s.toNat + lo.toNat) (hi.toNat - lo.toNat)) ∧
+      mergeSort (a.slice (s.toNat + lo.toNat) (hi.toNat - lo.toNat)) ∧
     ∀ x, ¬ (s.toNat + lo.toNat ≤ x ∧ x < s.toNat + hi.toNat) →
          ¬ (d.toNat + lo.toNat ≤ x ∧ x < d.toNat + hi.toNat) →
          (sortRange s d lo hi a hsz hs hd hlo).1.at' x = a.at' x := by
@@ -246,7 +246,7 @@ theorem sortRange_spec :
   have H1 : ∀ (A₁ : UInt64Array), A₁.size = a.size →
       (∀ h : 2 ≤ M - lo, A₁ = (sortRange d s lo M a hsz (by omega) (by omega) hMlo).1) →
       (¬ 2 ≤ M - lo → A₁ = a) →
-      A₁.slice (s.toNat + lo.toNat) (M.toNat - lo.toNat) = mergeSort le64 (a.slice (d.toNat + lo.toNat) (M.toNat - lo.toNat)) ∧
+      A₁.slice (s.toNat + lo.toNat) (M.toNat - lo.toNat) = mergeSort (a.slice (d.toNat + lo.toNat) (M.toNat - lo.toNat)) ∧
       ∀ x, ¬ (s.toNat + lo.toNat ≤ x ∧ x < s.toNat + M.toNat) → ¬ (d.toNat + lo.toNat ≤ x ∧ x < d.toNat + M.toNat) →
         A₁.at' x = a.at' x := by
     intro A₁ _ hrec hnorec
@@ -267,7 +267,7 @@ theorem sortRange_spec :
         A₁.at' x = a.at' x) →
       (∀ h : 2 ≤ hi - M, A₂ = (sortRange d s M hi A₁ (by omega) (by omega) (by omega) hMhi).1) →
       (¬ 2 ≤ hi - M → A₂ = A₁) →
-      A₂.slice (s.toNat + M.toNat) (hi.toNat - M.toNat) = mergeSort le64 (A₁.slice (d.toNat + M.toNat) (hi.toNat - M.toNat)) ∧
+      A₂.slice (s.toNat + M.toNat) (hi.toNat - M.toNat) = mergeSort (A₁.slice (d.toNat + M.toNat) (hi.toNat - M.toNat)) ∧
       ∀ x, ¬ (s.toNat + M.toNat ≤ x ∧ x < s.toNat + hi.toNat) → ¬ (d.toNat + M.toNat ≤ x ∧ x < d.toNat + hi.toNat) →
         A₂.at' x = A₁.at' x := by
     intro A₁ A₂ hA₁ _ H1b hrec hnorec
@@ -376,7 +376,7 @@ theorem copyOut_spec (a : UInt64Array) (n : UInt64) :
 
 /-- The fast sort computes exactly the simple sort. -/
 theorem sort_toList (xs : UInt64Array) (hsz : xs.size < 2 ^ 63) :
-    (sort xs hsz).data.toList = mergeSort le64 xs.data.toList := by
+    (sort xs hsz).data.toList = mergeSort xs.data.toList := by
   rw [sort]
   dsimp only
   let n : UInt64 := xs.size.toUInt64
@@ -421,7 +421,7 @@ theorem sort_toList (xs : UInt64Array) (hsz : xs.size < 2 ^ 63) :
 /-- The fast sort produces a sorted list. -/
 theorem sort_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 63) :
     (sort xs hsz).data.toList.Pairwise (· ≤ ·) := by
-  have := mergeSort_sorted le64 (fun a b c h1 h2 => by simpa using UInt64.le_trans (by simpa using h1) (by simpa using h2))
+  have := mergeSort_sorted (fun a b c h1 h2 => by simpa using UInt64.le_trans (by simpa using h1) (by simpa using h2))
     (fun a b => by simpa using UInt64.le_total a b) xs.data.toList
   rw [sort_toList]
   simpa [Sorted] using this
@@ -429,6 +429,6 @@ theorem sort_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 63) :
 /-- The fast sort produces a permutation of its input. -/
 theorem sort_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 63) :
     (sort xs hsz).data.toList.Perm xs.data.toList := by
-  rw [sort_toList]; exact mergeSort_perm le64 _
+  rw [sort_toList]; exact mergeSort_perm _
 
 end MergeSort.Fast

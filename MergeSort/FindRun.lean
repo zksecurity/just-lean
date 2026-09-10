@@ -39,8 +39,8 @@ decreasing_by u64
 
 theorem ascEnd_spec (n lo : UInt64) (a : UInt64Array) :
     ∀ (m : Nat) (i : UInt64) hsz hn hi, m = n.toNat - i.toNat → lo.toNat < i.toNat →
-    Sorted le64 (a.slice lo.toNat (i.toNat - lo.toNat)) →
-    Sorted le64 (a.slice lo.toNat ((ascEnd n i a hsz hn hi).1.toNat - lo.toNat)) := by
+    Sorted (a.slice lo.toNat (i.toNat - lo.toNat)) →
+    Sorted (a.slice lo.toNat ((ascEnd n i a hsz hn hi).1.toNat - lo.toNat)) := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
@@ -122,7 +122,7 @@ def findRun (lo n : UInt64) (a : UInt64Array) (hsz : a.size < 2 ^ 64 := by u64) 
   else ⟨(lo + 1, a), by show lo.toNat < (lo + 1).toNat; omega, by show (lo + 1).toNat ≤ n.toNat; omega, rfl⟩
 
 theorem findRun_spec (lo n : UInt64) (a : UInt64Array) hsz hn hlo :
-    Sorted le64 ((findRun lo n a hsz hn hlo).1.2.slice lo.toNat ((findRun lo n a hsz hn hlo).1.1.toNat - lo.toNat)) ∧
+    Sorted ((findRun lo n a hsz hn hlo).1.2.slice lo.toNat ((findRun lo n a hsz hn hlo).1.1.toNat - lo.toNat)) ∧
     ((findRun lo n a hsz hn hlo).1.2.slice lo.toNat ((findRun lo n a hsz hn hlo).1.1.toNat - lo.toNat)).Perm
       (a.slice lo.toNat ((findRun lo n a hsz hn hlo).1.1.toNat - lo.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ (findRun lo n a hsz hn hlo).1.1.toNat ≤ x) → (findRun lo n a hsz hn hlo).1.2.at' x = a.at' x := by
@@ -149,7 +149,7 @@ theorem findRun_spec (lo n : UInt64) (a : UInt64Array) hsz hn hlo :
     · rename_i hge
       have hle' : a.at' lo.toNat ≤ a.at' (lo.toNat + 1) := by
         have := UInt64.not_lt.mp hge; simpa [get_eq_at', e1] using this
-      have A := ascEnd_spec n lo a _ (lo + 2) hsz hn (by omega) rfl (by omega) (by rw [two]; simp [Sorted, le64, hle'])
+      have A := ascEnd_spec n lo a _ (lo + 2) hsz hn (by omega) rfl (by omega) (by rw [two]; simp [Sorted, hle'])
       exact ⟨A, List.Perm.refl _, fun _ _ => rfl⟩
   · refine ⟨?_, List.Perm.refl _, fun _ _ => rfl⟩
     rw [e1, Nat.add_sub_cancel_left, slice_one]; simp [Sorted]

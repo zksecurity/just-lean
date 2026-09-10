@@ -10,10 +10,10 @@ open UInt64Array MergeSort MergeSort.Fast MergeSort.BottomUp
 /-! ## The physical merge -/
 
 theorem mergeRuns_spec (v s : A) (lo mid hi : UInt64) hv hs hvsz hssz hlo hmid
-    (hL : Sorted le64 (v.slice lo.toNat (mid.toNat - lo.toNat)))
-    (hR : Sorted le64 (v.slice mid.toNat (hi.toNat - mid.toNat))) :
+    (hL : Sorted (v.slice lo.toNat (mid.toNat - lo.toNat)))
+    (hR : Sorted (v.slice mid.toNat (hi.toNat - mid.toNat))) :
     (mergeRuns v s lo mid hi hv hs hvsz hssz hlo hmid).1.1.slice lo.toNat (hi.toNat - lo.toNat) =
-      merge le64 (v.slice lo.toNat (mid.toNat - lo.toNat)) (v.slice mid.toNat (hi.toNat - mid.toNat)) ∧
+      merge (v.slice lo.toNat (mid.toNat - lo.toNat)) (v.slice mid.toNat (hi.toNat - mid.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (mergeRuns v s lo mid hi hv hs hvsz hssz hlo hmid).1.1.at' x = v.at' x) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (mergeRuns v s lo mid hi hv hs hvsz hssz hlo hmid).1.2.at' x = s.at' x := by
   unfold mergeRuns
@@ -41,14 +41,14 @@ theorem copyRange_frame (a b : UInt64) (src dst : A) hsz hs hd (off len : Nat) (
   apply slice_congr; intro t ht; exact C2 _ (by omega)
 
 theorem insertionSortRange_frame (lo hi k : UInt64) (a : A) hsz hhi hlo (off len : Nat) (h : off + len ≤ lo.toNat ∨ hi.toNat ≤ off)
-    (hk : k.toNat ≤ hi.toNat) (hsorted : Sorted le64 (a.slice lo.toNat (k.toNat - lo.toNat))) :
+    (hk : k.toNat ≤ hi.toNat) (hsorted : Sorted (a.slice lo.toNat (k.toNat - lo.toNat))) :
     (insertionSortRange lo hi k a hsz hhi hlo).1.slice off len = a.slice off len := by
   obtain ⟨_, F⟩ := insertionSortRange_spec lo hi (hi.toNat - k.toNat) k a hsz hhi hlo rfl hk hsorted
   apply slice_congr; intro t ht; exact F _ (by omega)
 
 theorem smallSortRest_spec (v s : A) (lo mid hi pre : UInt64) hv hs hvsz hssz h1 h2
-    (hL : Sorted le64 (s.slice lo.toNat pre.toNat)) (hR : Sorted le64 (s.slice mid.toNat pre.toNat)) :
-    Sorted le64 ((smallSortRest v s lo mid hi pre hv hs hvsz hssz h1 h2).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    (hL : Sorted (s.slice lo.toNat pre.toNat)) (hR : Sorted (s.slice mid.toNat pre.toNat)) :
+    Sorted ((smallSortRest v s lo mid hi pre hv hs hvsz hssz h1 h2).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((smallSortRest v s lo mid hi pre hv hs hvsz hssz h1 h2).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (s.slice lo.toNat pre.toNat ++ v.slice (lo.toNat + pre.toNat) (mid.toNat - lo.toNat - pre.toNat) ++
        (s.slice mid.toNat pre.toNat ++ v.slice (mid.toNat + pre.toNat) (hi.toNat - mid.toNat - pre.toNat))) ∧
@@ -67,7 +67,7 @@ theorem smallSortRest_spec (v s : A) (lo mid hi pre : UInt64) hv hs hvsz hssz h1
   rcases S1 with ⟨S1, hS1s⟩
   dsimp only at F1 Fr1a Fr1b G1 ⊢
   rw [e1] at F1
-  have hS1L : Sorted le64 (S1.slice lo.toNat ((lo + pre).toNat - lo.toNat)) := by
+  have hS1L : Sorted (S1.slice lo.toNat ((lo + pre).toNat - lo.toNat)) := by
     rw [e1, show lo.toNat + pre.toNat - lo.toNat = pre.toNat by omega, Fr1a]; exact hL
   -- stage 2: insert v's part of the left half
   have F2 := insertionSortRange_spec lo mid (mid.toNat - (lo + pre).toNat) (lo + pre) S1 (by rw [hS1s]; exact hssz) (by rw [hS1s]; omega)
@@ -91,7 +91,7 @@ theorem smallSortRest_spec (v s : A) (lo mid hi pre : UInt64) hv hs hvsz hssz h1
   rcases S3 with ⟨S3, hS3s⟩
   dsimp only at F3 Fr3a Fr3b G3 ⊢
   rw [e2] at F3
-  have hS3R : Sorted le64 (S3.slice mid.toNat ((mid + pre).toNat - mid.toNat)) := by
+  have hS3R : Sorted (S3.slice mid.toNat ((mid + pre).toNat - mid.toNat)) := by
     rw [e2, show mid.toNat + pre.toNat - mid.toNat = pre.toNat by omega, Fr3b, Fr2, Fr1b]; exact hR
   -- stage 4: insert v's part of the right half
   have F4 := insertionSortRange_spec mid hi (hi.toNat - (mid + pre).toNat) (mid + pre) S3 (by rw [hS3s, hS2s, hS1s]; exact hssz)
@@ -106,8 +106,8 @@ theorem smallSortRest_spec (v s : A) (lo mid hi pre : UInt64) hv hs hvsz hssz h1
   rw [e2, show mid.toNat + pre.toNat - mid.toNat = pre.toNat by omega, Fr3b, Fr2, Fr1b, F3] at F4
   rw [Fr3a, F2] at Fr4
   -- the two halves of S4 are sorted permutations
-  have hL' : Sorted le64 (S4.slice lo.toNat (mid.toNat - lo.toNat)) := by rw [Fr4]; exact insertAll_sorted _ _ hL
-  have hR' : Sorted le64 (S4.slice mid.toNat (hi.toNat - mid.toNat)) := by rw [F4]; exact insertAll_sorted _ _ hR
+  have hL' : Sorted (S4.slice lo.toNat (mid.toNat - lo.toNat)) := by rw [Fr4]; exact insertAll_sorted _ _ hL
+  have hR' : Sorted (S4.slice mid.toNat (hi.toNat - mid.toNat)) := by rw [F4]; exact insertAll_sorted _ _ hR
   -- stage 5: merge into v
   have M := mergeKernel_spec lo mid hi S4 v hvsz (by rw [hS4s, hS3s, hS2s, hS1s]; exact hs) hv (by omega) (by omega) hL' hR'
   generalize hV : mergeKernel lo mid hi S4 v hvsz (by rw [hS4s, hS3s, hS2s, hS1s]; exact hs) hv (by omega) (by omega) = V at *
@@ -115,9 +115,9 @@ theorem smallSortRest_spec (v s : A) (lo mid hi pre : UInt64) hv hs hvsz hssz h1
   dsimp only at M ⊢
   obtain ⟨M, Fm⟩ := M
   refine ⟨?_, ?_, fun x hx => Fm x hx, fun x hx => (G4 x (by omega)).trans ((G3 x (by omega)).trans ((G2 x (by omega)).trans (G1 x (by omega))))⟩
-  · rw [M]; exact merge_sorted le64 le64_trans le64_total hL' hR'
+  · rw [M]; exact merge_sorted le64_trans le64_total hL' hR'
   · rw [M]
-    refine (merge_perm le64 _ _).trans (List.Perm.append ?_ ?_)
+    refine (merge_perm _ _).trans (List.Perm.append ?_ ?_)
     · rw [Fr4]
       refine (insertAll_perm _ _).trans ?_
       rw [show mid.toNat - (lo.toNat + pre.toNat) = mid.toNat - lo.toNat - pre.toNat by omega]
@@ -134,7 +134,7 @@ theorem slice_split4 (a : A) (lo mid hi pre : Nat) (h1 : lo + pre ≤ mid) (h2 :
 
 /-- `sort4` as a sorted permutation of the four elements. -/
 theorem sort4_sorted_perm (lo : UInt64) (a : A) hsz h :
-    Sorted le64 ((sort4 lo a hsz h).1.slice lo.toNat 4) ∧ ((sort4 lo a hsz h).1.slice lo.toNat 4).Perm (a.slice lo.toNat 4) := by
+    Sorted ((sort4 lo a hsz h).1.slice lo.toNat 4) ∧ ((sort4 lo a hsz h).1.slice lo.toNat 4).Perm (a.slice lo.toNat 4) := by
   obtain ⟨S, _⟩ := sort4_spec lo a hsz h
   rw [S, slice_four a]
   exact ⟨net4_sorted _ _ _ _, net4_perm _ _ _ _⟩
@@ -146,14 +146,14 @@ theorem sort4_frame (lo : UInt64) (a : A) hsz h (off len : Nat) (hd : off + len 
 
 theorem mergeKernel_frame (lo mid hi : UInt64) (src dst : A) hsz hs hd hlo hmid (off len : Nat)
     (h : off + len ≤ lo.toNat ∨ hi.toNat ≤ off)
-    (hL : Sorted le64 (src.slice lo.toNat (mid.toNat - lo.toNat))) (hR : Sorted le64 (src.slice mid.toNat (hi.toNat - mid.toNat))) :
+    (hL : Sorted (src.slice lo.toNat (mid.toNat - lo.toNat))) (hR : Sorted (src.slice mid.toNat (hi.toNat - mid.toNat))) :
     (mergeKernel lo mid hi src dst hsz hs hd hlo hmid).1.slice off len = dst.slice off len := by
   obtain ⟨_, F⟩ := mergeKernel_spec lo mid hi src dst hsz hs hd hlo hmid hL hR
   apply slice_congr; intro t ht; exact F _ (by omega)
 
 set_option maxHeartbeats 2000000 in
 theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
-    Sorted le64 ((smallSort v s lo hi hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((smallSort v s lo hi hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((smallSort v s lo hi hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (smallSort v s lo hi hv hs hvsz hssz hlo).1.1.at' x = v.at' x) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (smallSort v s lo hi hv hs hvsz hssz hlo).1.2.at' x = s.at' x := by
@@ -198,9 +198,9 @@ theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
       have V2lo : V2.slice lo.toNat 4 = V1.slice lo.toNat 4 := F2 _ _ (Or.inl (by omega))
       have V1lo4 : V1.slice (lo.toNat + 4) 4 = v.slice (lo.toNat + 4) 4 := F1 _ _ (Or.inr (by omega))
       -- S1 := merge V2[lo, lo+4) and V2[lo+4, lo+8) into s
-      have hS1L : Sorted le64 (V2.slice lo.toNat ((lo + 4).toNat - lo.toNat)) := by
+      have hS1L : Sorted (V2.slice lo.toNat ((lo + 4).toNat - lo.toNat)) := by
         rw [e4, show lo.toNat + 4 - lo.toNat = 4 by omega, V2lo]; exact P1.1
-      have hS1R : Sorted le64 (V2.slice (lo + 4).toNat ((lo + 8).toNat - (lo + 4).toNat)) := by
+      have hS1R : Sorted (V2.slice (lo + 4).toNat ((lo + 8).toNat - (lo + 4).toNat)) := by
         rw [e4, e8, show lo.toNat + 8 - (lo.toNat + 4) = 4 by omega]; exact P2.1
       generalize hS1 : mergeKernel lo (lo + 4) (lo + 8) V2 s hssz (by rw [hV2s, hV1s]; omega) (by omega) (by omega) (by omega) = S1
       rcases S1 with ⟨S1, hS1s⟩
@@ -210,11 +210,11 @@ theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
       obtain ⟨M1, FM1⟩ := M1
       rw [e4, e8, show lo.toNat + 8 - lo.toNat = 8 by omega, show lo.toNat + 4 - lo.toNat = 4 by omega,
         show lo.toNat + 8 - (lo.toNat + 4) = 4 by omega] at M1
-      have S1sorted : Sorted le64 (S1.slice lo.toNat 8) := by
-        rw [M1]; exact merge_sorted le64 le64_trans le64_total (by rw [V2lo]; exact P1.1) P2.1
+      have S1sorted : Sorted (S1.slice lo.toNat 8) := by
+        rw [M1]; exact merge_sorted le64_trans le64_total (by rw [V2lo]; exact P1.1) P2.1
       have S1perm : (S1.slice lo.toNat 8).Perm (v.slice lo.toNat 8) := by
         rw [M1, show (8 : Nat) = 4 + 4 from rfl, slice_add v]
-        exact (merge_perm le64 _ _).trans (List.Perm.append (by rw [V2lo]; exact P1.2) (P2.2.trans (by rw [V1lo4])))
+        exact (merge_perm _ _).trans (List.Perm.append (by rw [V2lo]; exact P1.2) (P2.2.trans (by rw [V1lo4])))
       -- V2 agrees with v from lo+8 on
       have V2rest : ∀ off len, lo.toNat + 8 ≤ off → V2.slice off len = v.slice off len := fun off len h => by
         rw [F2 _ _ (Or.inr (by omega)), F1 _ _ (Or.inr (by omega))]
@@ -237,9 +237,9 @@ theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
         rw [F3 _ _ (Or.inr (by omega)), V2rest _ _ (by omega)]
       have V2mid : V2.slice (lo + (hi - lo) / 2).toNat 4 = v.slice (lo + (hi - lo) / 2).toNat 4 := V2rest _ _ (by omega)
       -- S2 := merge V4[mid, mid+4) and V4[mid+4, mid+8) into S1
-      have hS2L : Sorted le64 (V4.slice (lo + (hi - lo) / 2).toNat ((lo + (hi - lo) / 2 + 4).toNat - (lo + (hi - lo) / 2).toNat)) := by
+      have hS2L : Sorted (V4.slice (lo + (hi - lo) / 2).toNat ((lo + (hi - lo) / 2 + 4).toNat - (lo + (hi - lo) / 2).toNat)) := by
         rw [m4, Nat.add_sub_cancel_left, V4mid]; exact P3.1
-      have hS2R : Sorted le64 (V4.slice (lo + (hi - lo) / 2 + 4).toNat ((lo + (hi - lo) / 2 + 8).toNat - (lo + (hi - lo) / 2 + 4).toNat)) := by
+      have hS2R : Sorted (V4.slice (lo + (hi - lo) / 2 + 4).toNat ((lo + (hi - lo) / 2 + 8).toNat - (lo + (hi - lo) / 2 + 4).toNat)) := by
         rw [m4, m8, show (lo + (hi - lo) / 2).toNat + 8 - ((lo + (hi - lo) / 2).toNat + 4) = 4 by omega]; exact P4.1
       generalize hS2 : mergeKernel (lo + (hi - lo) / 2) (lo + (hi - lo) / 2 + 4) (lo + (hi - lo) / 2 + 8) V4 S1 (by rw [hS1s]; exact hssz)
         (by rw [hV4s, hV3s, hV2s, hV1s]; omega) (by rw [hS1s]; omega) (by omega) (by omega) = S2
@@ -251,11 +251,11 @@ theorem smallSort_spec (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo :
       obtain ⟨M2, FM2⟩ := M2
       rw [m4, m8, Nat.add_sub_cancel_left, Nat.add_sub_cancel_left,
         show (lo + (hi - lo) / 2).toNat + 8 - ((lo + (hi - lo) / 2).toNat + 4) = 4 by omega] at M2
-      have S2sorted : Sorted le64 (S2.slice (lo + (hi - lo) / 2).toNat 8) := by
-        rw [M2]; exact merge_sorted le64 le64_trans le64_total (by rw [V4mid]; exact P3.1) P4.1
+      have S2sorted : Sorted (S2.slice (lo + (hi - lo) / 2).toNat 8) := by
+        rw [M2]; exact merge_sorted le64_trans le64_total (by rw [V4mid]; exact P3.1) P4.1
       have S2perm : (S2.slice (lo + (hi - lo) / 2).toNat 8).Perm (v.slice (lo + (hi - lo) / 2).toNat 8) := by
         rw [M2, show (8 : Nat) = 4 + 4 from rfl, slice_add v]
-        exact (merge_perm le64 _ _).trans (List.Perm.append (by rw [V4mid]; exact P3.2.trans (by rw [V2mid]))
+        exact (merge_perm _ _).trans (List.Perm.append (by rw [V4mid]; exact P3.2.trans (by rw [V2mid]))
           (P4.2.trans (by rw [V3mid4])))
       have S2lo : S2.slice lo.toNat 8 = S1.slice lo.toNat 8 := by
         apply slice_congr; intro t ht; exact FM2 _ (Or.inl (by omega))

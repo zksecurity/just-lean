@@ -3,6 +3,9 @@ open Lake DSL
 
 package mergesort
 
+/-- Only used to extract highlighted code for the tutorial site (`site/`). -/
+require subverso from git "https://github.com/leanprover/subverso" @ "3a75ede05278806fd3249bb0c97a6fb5777a4f7d"
+
 /-- The verified sorts (Parts 1 to 3 of the tutorial). -/
 @[default_target]
 lean_lib MergeSort where

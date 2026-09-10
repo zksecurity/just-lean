@@ -20,7 +20,7 @@ theorem perm_of_sub (a b : A) (lo len off n : Nat) (hsub1 : lo ≤ off) (hsub2 :
 /-- The specification a range sorter must satisfy. -/
 def QuickSpec (quick : Quick) : Prop :=
   ∀ (v s : A) (lo hi : UInt64) hv hs hvsz hssz hlo,
-    Sorted le64 ((quick v s lo hi hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((quick v s lo hi hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((quick v s lo hi hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (quick v s lo hi hv hs hvsz hssz hlo).1.1.at' x = v.at' x) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (quick v s lo hi hv hs hvsz hssz hlo).1.2.at' x = s.at' x
@@ -39,7 +39,7 @@ theorem insertionQuick_spec : QuickSpec insertionQuick := by
 
 theorem createRunRest_spec (v s : A) (lo hi minGood : UInt64) (eager : Bool) hv hs hvsz hssz hlo hmg :
     ((createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.1.sorted = true →
-      Sorted le64 ((createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.2.1.slice lo.toNat
+      Sorted ((createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.2.1.slice lo.toNat
         (createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.1.len.toNat)) ∧
     ((createRunRest v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.2.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
@@ -72,7 +72,7 @@ theorem createRunRest_spec (v s : A) (lo hi minGood : UInt64) (eager : Bool) hv 
 
 theorem createRun_spec (v s : A) (lo hi minGood : UInt64) (eager : Bool) hv hs hvsz hssz hlo hmg :
     ((createRun v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.1.sorted = true →
-      Sorted le64 ((createRun v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.2.1.slice lo.toNat
+      Sorted ((createRun v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.2.1.slice lo.toNat
         (createRun v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.1.len.toNat)) ∧
     ((createRun v s lo hi minGood eager hv hs hvsz hssz hlo hmg).1.2.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
@@ -108,10 +108,10 @@ theorem createRun_spec (v s : A) (lo hi minGood : UInt64) (eager : Bool) hv hs h
 
 theorem logicalMerge_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo mid hi scratchLen : UInt64) (lsorted rsorted : Bool)
     hv hs hvsz hssz hlo hmid
-    (hL : lsorted = true → Sorted le64 (v.slice lo.toNat (mid.toNat - lo.toNat)))
-    (hR : rsorted = true → Sorted le64 (v.slice mid.toNat (hi.toNat - mid.toNat))) :
+    (hL : lsorted = true → Sorted (v.slice lo.toNat (mid.toNat - lo.toNat)))
+    (hR : rsorted = true → Sorted (v.slice mid.toNat (hi.toNat - mid.toNat))) :
     ((logicalMerge quick v s lo mid hi scratchLen lsorted rsorted hv hs hvsz hssz hlo hmid).1.1 = true →
-      Sorted le64 ((logicalMerge quick v s lo mid hi scratchLen lsorted rsorted hv hs hvsz hssz hlo hmid).1.2.1.slice lo.toNat (hi.toNat - lo.toNat))) ∧
+      Sorted ((logicalMerge quick v s lo mid hi scratchLen lsorted rsorted hv hs hvsz hssz hlo hmid).1.2.1.slice lo.toNat (hi.toNat - lo.toNat))) ∧
     ((logicalMerge quick v s lo mid hi scratchLen lsorted rsorted hv hs hvsz hssz hlo hmid).1.2.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (logicalMerge quick v s lo mid hi scratchLen lsorted rsorted hv hs hvsz hssz hlo hmid).1.2.1.at' x = v.at' x) ∧
@@ -122,7 +122,7 @@ theorem logicalMerge_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo m
   · -- physical merge: sort the unsorted sides, then merge
     -- stage 1: the left run
     have S1 : ∀ (r : VS v s), (r = if lsorted then ⟨(v, s), rfl, rfl⟩ else quick v s lo mid (by omega) (by omega) hvsz hssz hlo) →
-        Sorted le64 (r.1.1.slice lo.toNat (mid.toNat - lo.toNat)) ∧
+        Sorted (r.1.1.slice lo.toNat (mid.toNat - lo.toNat)) ∧
         (r.1.1.slice lo.toNat (mid.toNat - lo.toNat)).Perm (v.slice lo.toNat (mid.toNat - lo.toNat)) ∧
         (∀ x, (x < lo.toNat ∨ mid.toNat ≤ x) → r.1.1.at' x = v.at' x) ∧
         ∀ x, (x < lo.toNat ∨ mid.toNat ≤ x) → r.1.2.at' x = s.at' x := by
@@ -139,7 +139,7 @@ theorem logicalMerge_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo m
     -- stage 2: the right run
     have S2 : ∀ (r : VS v1 s1), (r = if rsorted then ⟨(v1, s1), rfl, rfl⟩ else
           quick v1 s1 mid hi (by rw [hv1]; exact hv) (by rw [hs1]; exact hs) (by rw [hv1]; exact hvsz) (by rw [hs1]; exact hssz) hmid) →
-        Sorted le64 (r.1.1.slice mid.toNat (hi.toNat - mid.toNat)) ∧
+        Sorted (r.1.1.slice mid.toNat (hi.toNat - mid.toNat)) ∧
         (r.1.1.slice mid.toNat (hi.toNat - mid.toNat)).Perm (v1.slice mid.toNat (hi.toNat - mid.toNat)) ∧
         (∀ x, (x < mid.toNat ∨ hi.toNat ≤ x) → r.1.1.at' x = v1.at' x) ∧
         ∀ x, (x < mid.toNat ∨ hi.toNat ≤ x) → r.1.2.at' x = s1.at' x := by
@@ -171,9 +171,9 @@ theorem logicalMerge_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo m
       have h1 : c.slice lo.toNat (hi.toNat - lo.toNat) = c.slice lo.toNat ((mid.toNat - lo.toNat) + (hi.toNat - mid.toNat)) := by congr 1; omega
       rw [h1, slice_add, show lo.toNat + (mid.toNat - lo.toNat) = mid.toNat by omega]
     refine ⟨fun _ => ?_, ?_, fun x hx => ?_, fun x hx => ?_⟩
-    · rw [M1]; exact merge_sorted le64 le64_trans le64_total (by rw [v2lo]; exact S1a) S2a
+    · rw [M1]; exact merge_sorted le64_trans le64_total (by rw [v2lo]; exact S1a) S2a
     · rw [M1]
-      refine (merge_perm le64 _ _).trans ?_
+      refine (merge_perm _ _).trans ?_
       rw [hsplit v]
       refine List.Perm.append (by rw [v2lo]; exact S1b) (S2b.trans ?_)
       rw [slice_congr (fun t ht => S1c _ (Or.inr (by omega)))]
@@ -183,10 +183,12 @@ theorem logicalMerge_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo m
 
 /-! ## The run stack -/
 
+-- ANCHOR: RunsOK
 /-- `RunsOK rs e a`: the runs `rs` (top first) tile `a` downward from position `e`; the sorted ones are sorted. -/
 def RunsOK : List Run → Nat → A → Prop
   | [], _, _ => True
-  | r :: rs, e, a => r.len.toNat ≤ e ∧ (r.sorted = true → Sorted le64 (a.slice (e - r.len.toNat) r.len.toNat)) ∧ RunsOK rs (e - r.len.toNat) a
+  | r :: rs, e, a => r.len.toNat ≤ e ∧ (r.sorted = true → Sorted (a.slice (e - r.len.toNat) r.len.toNat)) ∧ RunsOK rs (e - r.len.toNat) a
+-- ANCHOR_END: RunsOK
 
 def runsSum (rs : List Run) : Nat := (rs.map (fun r => r.len.toNat)).sum
 @[simp] theorem runsSum_nil : runsSum [] = 0 := rfl
@@ -291,7 +293,7 @@ theorem collapse_spec (quick : Quick) (HQ : QuickSpec quick) (lo scanIdx scratch
 theorem driftLoop_spec (quick : Quick) (HQ : QuickSpec quick) (lo len scratchLen minGood scale : UInt64) (eager : Bool) :
     ∀ (m : Nat) (scanIdx : UInt64) (prevRun : Run) (st : Stack) (v s : A) hv hs hvsz hssz hmg hscan hsum, m = len.toNat - scanIdx.toNat →
     RunsOK (prevRun :: st.map Prod.fst) (lo.toNat + scanIdx.toNat) v →
-    Sorted le64 ((driftLoop quick lo len scratchLen minGood scale eager scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum).1.1.slice lo.toNat len.toNat) ∧
+    Sorted ((driftLoop quick lo len scratchLen minGood scale eager scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum).1.1.slice lo.toNat len.toNat) ∧
     ((driftLoop quick lo len scratchLen minGood scale eager scanIdx prevRun st v s hv hs hvsz hssz hmg hscan hsum).1.1.slice lo.toNat len.toNat).Perm
       (v.slice lo.toNat len.toNat) ∧
     (∀ x, (x < lo.toNat ∨ lo.toNat + len.toNat ≤ x) →
@@ -385,7 +387,7 @@ theorem driftLoop_spec (quick : Quick) (HQ : QuickSpec quick) (lo len scratchLen
       exact ⟨Q.1, Q.2.1.trans K2, fun x hx => (Q.2.2.1 x hx).trans (K3 x hx), fun x hx => (Q.2.2.2 x hx).trans (K4 x hx)⟩
 
 theorem driftSort_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo hi scratchLen : UInt64) (eager : Bool) hv hs hvsz hssz hlo :
-    Sorted le64 ((driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSort quick v s lo hi scratchLen eager hv hs hvsz hssz hlo).1.1.at' x = v.at' x) ∧
@@ -415,7 +417,7 @@ theorem driftSort_spec (quick : Quick) (HQ : QuickSpec quick) (v s : A) (lo hi s
     exact ⟨D.1, D.2.1, fun x hx => D.2.2.1 x (by omega), fun x hx => D.2.2.2 x (by omega)⟩
 
 theorem driftSortEager_spec (v s : A) (lo hi scratchLen : UInt64) hv hs hvsz hssz hlo :
-    Sorted le64 ((driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.at' x = v.at' x) ∧
@@ -428,7 +430,7 @@ theorem mem_slice_of_lt (a : A) (off len i : Nat) (h1 : off ≤ i) (h2 : i < off
   simp only [slice, List.mem_map, List.mem_range]
   exact ⟨i - off, by omega, by congr 1; omega⟩
 
-theorem sorted_of_const (p : UInt64) : ∀ (l : List UInt64), (∀ x ∈ l, x = p) → Sorted le64 l := by
+theorem sorted_of_const (p : UInt64) : ∀ (l : List UInt64), (∀ x ∈ l, x = p) → Sorted l := by
   intro l
   induction l with
   | nil => intro _; simp [Sorted]
@@ -436,7 +438,7 @@ theorem sorted_of_const (p : UInt64) : ∀ (l : List UInt64), (∀ x ∈ l, x = 
     intro h
     refine List.pairwise_cons.mpr ⟨fun y hy => ?_, ih (fun y hy => h y (List.mem_cons_of_mem _ hy))⟩
     rw [h x (List.mem_cons_self ..), h y (List.mem_cons_of_mem _ hy)]
-    simp [le64]
+    simp
 
 theorem mem_leftPart {eq : Bool} {p x : UInt64} {l : List UInt64} : x ∈ leftPart eq p l ↔ x ∈ l ∧ goesLeft eq p x = true := List.mem_filter
 theorem mem_rightPart {eq : Bool} {p x : UInt64} {l : List UInt64} : x ∈ rightPart eq p l ↔ x ∈ l ∧ goesLeft eq p x = false := by
@@ -457,7 +459,7 @@ set_option maxHeartbeats 4000000 in
 theorem quicksort_spec (scratchLen : UInt64) :
     ∀ (m : Nat) (a b : A) (lo hi limit : UInt64) (hasLA : Bool) (la : UInt64) (toB : Bool) ha hb hasz hbsz hlo, m = hi.toNat - lo.toNat →
     (hasLA = true → ∀ x ∈ a.slice lo.toNat (hi.toNat - lo.toNat), la ≤ x) →
-    Sorted le64 ((pick toB (quicksort a b lo hi scratchLen limit hasLA la toB ha hb hasz hbsz hlo).1).slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((pick toB (quicksort a b lo hi scratchLen limit hasLA la toB ha hb hasz hbsz hlo).1).slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((pick toB (quicksort a b lo hi scratchLen limit hasLA la toB ha hb hasz hbsz hlo).1).slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (a.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (quicksort a b lo hi scratchLen limit hasLA la toB ha hb hasz hbsz hlo).1.1.at' x = a.at' x) ∧
@@ -650,7 +652,6 @@ theorem quicksort_spec (scratchLen : UInt64) :
             rw [hReq, List.mem_reverse] at hy'
             have := (mem_rightPart.mp hy').2
             rw [goesLeft_true] at this
-            simp only [le64, decide_eq_true_eq]
             exact UInt64.le_of_lt (by simpa using this)
           · rw [hsplit3, Plo]
             refine (List.Perm.append (List.Perm.refl _) I2).trans ?_
@@ -726,7 +727,7 @@ theorem quicksort_spec (scratchLen : UInt64) :
               (b1.slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat)) := by
             have := I2
             rwa [show hi.toNat - (lo.toNat + nl.toNat) = hi.toNat - lo.toNat - nl.toNat by omega] at this
-          have I1' : Sorted le64 ((pick (!toB) (b2, a2)).slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat)) := by
+          have I1' : Sorted ((pick (!toB) (b2, a2)).slice (lo.toNat + nl.toNat) (hi.toNat - lo.toNat - nl.toNat)) := by
             have := I1
             rwa [show hi.toNat - (lo.toNat + nl.toNat) = hi.toNat - lo.toNat - nl.toNat by omega] at this
           refine ⟨?_, ?_, fun x hx => (J4 x (by omega)).trans (I4 x (by omega)),
@@ -741,7 +742,6 @@ theorem quicksort_spec (scratchLen : UInt64) :
             rw [hReq, List.mem_reverse] at hy'
             have hyr := (mem_rightPart.mp hy').2
             rw [goesLeft_false] at hyr
-            simp only [le64, decide_eq_true_eq]
             exact UInt64.le_of_lt (UInt64.lt_of_lt_of_le (by simpa using hxl) (by simpa using hyr))
           · rw [hsplit3, Phi]
             refine (List.Perm.append J2 I2').trans ?_
@@ -772,7 +772,7 @@ theorem stableQuicksort_spec (scratchLen : UInt64) :
   exact Q
 
 theorem driftSortFull_spec (v s : A) (lo hi scratchLen : UInt64) hv hs hvsz hssz hlo :
-    Sorted le64 ((driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
+    Sorted ((driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     ((driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.slice lo.toNat (hi.toNat - lo.toNat)).Perm
       (v.slice lo.toNat (hi.toNat - lo.toNat)) ∧
     (∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (driftSortFull v s lo hi scratchLen hv hs hvsz hssz hlo).1.1.at' x = v.at' x) ∧
@@ -781,8 +781,11 @@ theorem driftSortFull_spec (v s : A) (lo hi scratchLen : UInt64) hv hs hvsz hssz
 
 /-! ## The headline theorems -/
 
+-- ANCHOR: sort_sorted
 /-- The bounds-safe driftsort returns a sorted array. -/
-theorem sort_sorted (xs : A) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sort xs hsz).data.toList := by
+theorem sort_sorted (xs : A) (hsz : xs.size < 2 ^ 62) : Sorted (sort xs hsz).data.toList
+-- ANCHOR_END: sort_sorted
+    := by
   unfold sort
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   dsimp only
@@ -830,8 +833,11 @@ theorem sort_sorted (xs : A) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sort xs hsz
           rw [← slice_eq_toList, hs']
           simpa using D.1
 
+-- ANCHOR: sort_perm
 /-- The bounds-safe driftsort returns a permutation of its input. -/
-theorem sort_perm (xs : A) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList := by
+theorem sort_perm (xs : A) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList
+-- ANCHOR_END: sort_perm
+    := by
   unfold sort
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   have exs : xs.slice 0 (xs.size.toUInt64).toNat = xs.data.toList := by rw [hn, slice_eq_toList]

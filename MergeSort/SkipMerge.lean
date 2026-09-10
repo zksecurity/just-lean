@@ -62,21 +62,20 @@ theorem copyRange_spec (hi : UInt64) (src : UInt64Array) :
 
 /-- Merging two sorted lists that are already in order is concatenation. -/
 theorem merge_eq_append (L R : List UInt64) (h : ∀ l ∈ L, ∀ r ∈ R, l ≤ r) :
-    merge le64 L R = L ++ R := by
+    merge L R = L ++ R := by
   induction L with
   | nil => simp [merge_nil_left]
   | cons l L ih =>
     cases R with
     | nil => simp [merge_nil_right]
     | cons r R =>
-      have hlr : le64 l r = true := by
-        simp only [le64, decide_eq_true_eq]; exact h l (by simp) r (by simp)
+      have hlr : l ≤ r := h l (by simp) r (by simp)
       simp only [merge, hlr, if_true, List.cons_append]
       rw [ih (fun l' hl' r' hr' => h l' (by simp [hl']) r' hr')]
 
 /-- All elements of the left sorted run are `≤` all elements of the right sorted run when the
     boundary elements are in order. -/
-theorem runs_in_order (L R : List UInt64) (x y : UInt64) (hL : Sorted le64 (L ++ [x])) (hR : Sorted le64 (y :: R))
+theorem runs_in_order (L R : List UInt64) (x y : UInt64) (hL : Sorted (L ++ [x])) (hR : Sorted (y :: R))
     (hxy : x ≤ y) : ∀ l ∈ L ++ [x], ∀ r ∈ y :: R, l ≤ r := by
   intro l hl r hr
   have h1 : l ≤ x := by
@@ -102,10 +101,10 @@ def mergeKernelS (lo mid hi : UInt64) (src dst : UInt64Array)
   else mergeKernel lo mid hi src dst
 
 theorem mergeKernelS_spec (lo mid hi : UInt64) (src dst : UInt64Array) hsz hs hd hlo hmid
-    (hL : Sorted le64 (src.slice lo.toNat (mid.toNat - lo.toNat)))
-    (hR : Sorted le64 (src.slice mid.toNat (hi.toNat - mid.toNat))) :
+    (hL : Sorted (src.slice lo.toNat (mid.toNat - lo.toNat)))
+    (hR : Sorted (src.slice mid.toNat (hi.toNat - mid.toNat))) :
     (mergeKernelS lo mid hi src dst hsz hs hd hlo hmid).1.slice lo.toNat (hi.toNat - lo.toNat) =
-      merge le64 (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat)) ∧
+      merge (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (mergeKernelS lo mid hi src dst hsz hs hd hlo hmid).1.at' x = dst.at' x := by
   rw [mergeKernelS]
   split

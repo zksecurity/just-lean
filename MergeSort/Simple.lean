@@ -3,55 +3,71 @@
 -/
 namespace MergeSort
 
-/-- The specification: every element is `le` every later element. -/
-def Sorted {α : Type} (le : α → α → Bool) (l : List α) : Prop := l.Pairwise (fun a b => le a b = true)
+-- ANCHOR: Sorted
+/-- The specification: every element is `≤` every later element. -/
+def Sorted {α : Type} [LE α] (l : List α) : Prop := l.Pairwise (· ≤ ·)
+-- ANCHOR_END: Sorted
 
+-- ANCHOR: merge
 /-- Merge two sorted lists into one sorted list. -/
-def merge {α : Type} (le : α → α → Bool) : List α → List α → List α
+def merge {α : Type} [LE α] [DecidableLE α] : List α → List α → List α
   | [], ys => ys
   | xs, [] => xs
   | x :: xs, y :: ys =>
-    if le x y then x :: merge le xs (y :: ys) else y :: merge le (x :: xs) ys
+    if x ≤ y then x :: merge xs (y :: ys) else y :: merge (x :: xs) ys
+-- ANCHOR_END: merge
 
+-- ANCHOR: mergeSort
 /-- Split in half, sort both halves, merge. -/
-def mergeSort {α : Type} (le : α → α → Bool) (l : List α) : List α :=
+def mergeSort {α : Type} [LE α] [DecidableLE α] (l : List α) : List α :=
   if h : l.length ≤ 1 then l
   else
     let half := l.length / 2
-    merge le (mergeSort le (l.take half)) (mergeSort le (l.drop half))
+    merge (mergeSort (l.take half)) (mergeSort (l.drop half))
 termination_by l.length
 decreasing_by all_goals simp; omega
+-- ANCHOR_END: mergeSort
 
 /-! ## The output is a permutation of the input -/
 
-theorem merge_perm {α : Type} (le : α → α → Bool) (xs ys : List α) : (merge le xs ys).Perm (xs ++ ys) := by
-  induction xs, ys using merge.induct le with
+-- ANCHOR: merge_perm
+theorem merge_perm {α : Type} [LE α] [DecidableLE α] (xs ys : List α) :
+    (merge xs ys).Perm (xs ++ ys) := by
+  induction xs, ys using merge.induct with
   | case1 ys => simp [merge]
   | case2 xs h => simp [merge]
   | case3 x xs y ys hle ih => simpa [merge, hle] using ih
   | case4 x xs y ys hle ih =>
     simp [merge, hle]
     exact (ih.cons y).trans List.perm_middle.symm
+-- ANCHOR_END: merge_perm
 
-theorem mergeSort_perm {α : Type} (le : α → α → Bool) (l : List α) : (mergeSort le l).Perm l := by
+-- ANCHOR: mergeSort_perm
+theorem mergeSort_perm {α : Type} [LE α] [DecidableLE α] (l : List α) :
+    (mergeSort l).Perm l := by
   induction l using mergeSort.induct with
   | case1 l h => simp [mergeSort, h]
   | case2 l h half ih1 ih2 =>
     rw [mergeSort, dif_neg h]
-    exact (merge_perm le _ _).trans ((ih1.append ih2).trans (by simp))
+    exact (merge_perm _ _).trans ((ih1.append ih2).trans (by simp))
+-- ANCHOR_END: mergeSort_perm
 
 /-! ## The output is sorted -/
 
-theorem mem_merge {α : Type} (le : α → α → Bool) {a : α} {xs ys : List α} : a ∈ merge le xs ys ↔ a ∈ xs ∨ a ∈ ys := by
-  rw [(merge_perm le xs ys).mem_iff, List.mem_append]
+-- ANCHOR: mem_merge
+theorem mem_merge {α : Type} [LE α] [DecidableLE α] {a : α} {xs ys : List α} :
+    a ∈ merge xs ys ↔ a ∈ xs ∨ a ∈ ys := by
+  rw [(merge_perm xs ys).mem_iff, List.mem_append]
+-- ANCHOR_END: mem_merge
 
-/-- Merging sorted lists gives a sorted list, provided `le` is transitive and total. -/
-theorem merge_sorted {α : Type} (le : α → α → Bool)
-    (trans : ∀ a b c, le a b = true → le b c = true → le a c = true)
-    (total : ∀ a b, le a b = true ∨ le b a = true)
-    {xs ys : List α} (hx : Sorted le xs) (hy : Sorted le ys) :
-    Sorted le (merge le xs ys) := by
-  induction xs, ys using merge.induct le with
+-- ANCHOR: merge_sorted
+/-- Merging sorted lists gives a sorted list, provided `≤` is transitive and total. -/
+theorem merge_sorted {α : Type} [LE α] [DecidableLE α]
+    (trans : ∀ a b c : α, a ≤ b → b ≤ c → a ≤ c)
+    (total : ∀ a b : α, a ≤ b ∨ b ≤ a)
+    {xs ys : List α} (hx : Sorted xs) (hy : Sorted ys) :
+    Sorted (merge xs ys) := by
+  induction xs, ys using merge.induct with
   | case1 ys => simpa [merge]
   | case2 xs h => simpa [merge]
   | case3 x xs y ys hle ih =>
@@ -59,30 +75,32 @@ theorem merge_sorted {α : Type} (le : α → α → Bool)
     have hx' := List.pairwise_cons.mp hx
     refine List.pairwise_cons.mpr ⟨?_, ih hx'.2 hy⟩
     intro b hb
-    rcases (mem_merge le).mp hb with hb | hb
+    rcases mem_merge.mp hb with hb | hb
     · exact hx'.1 b hb
     · rcases List.mem_cons.mp hb with rfl | hb
       · exact hle
       · exact trans _ _ _ hle ((List.pairwise_cons.mp hy).1 b hb)
   | case4 x xs y ys hle ih =>
-    simp only [merge, hle, Bool.false_eq_true, ↓reduceIte]
+    simp only [merge, hle, ↓reduceIte]
     have hy' := List.pairwise_cons.mp hy
-    have hyx : le y x = true := by
+    have hyx : y ≤ x := by
       rcases total x y with h | h
-      · exact absurd h (by simpa using hle)
+      · exact absurd h hle
       · exact h
     refine List.pairwise_cons.mpr ⟨?_, ih hx hy'.2⟩
     intro b hb
-    rcases (mem_merge le).mp hb with hb | hb
+    rcases mem_merge.mp hb with hb | hb
     · rcases List.mem_cons.mp hb with rfl | hb
       · exact hyx
       · exact trans _ _ _ hyx ((List.pairwise_cons.mp hx).1 b hb)
     · exact hy'.1 b hb
+-- ANCHOR_END: merge_sorted
 
-theorem mergeSort_sorted {α : Type} (le : α → α → Bool)
-    (trans : ∀ a b c, le a b = true → le b c = true → le a c = true)
-    (total : ∀ a b, le a b = true ∨ le b a = true)
-    (l : List α) : Sorted le (mergeSort le l) := by
+-- ANCHOR: mergeSort_sorted
+theorem mergeSort_sorted {α : Type} [LE α] [DecidableLE α]
+    (trans : ∀ a b c : α, a ≤ b → b ≤ c → a ≤ c)
+    (total : ∀ a b : α, a ≤ b ∨ b ≤ a)
+    (l : List α) : Sorted (mergeSort l) := by
   induction l using mergeSort.induct with
   | case1 l h =>
     rw [mergeSort, dif_pos h]
@@ -91,13 +109,16 @@ theorem mergeSort_sorted {α : Type} (le : α → α → Bool)
     | [x], _ => simp [Sorted]
   | case2 l h half ih1 ih2 =>
     rw [mergeSort, dif_neg h]
-    exact merge_sorted le trans total ih1 ih2
+    exact merge_sorted trans total ih1 ih2
+-- ANCHOR_END: mergeSort_sorted
 
+-- ANCHOR: mergeSort_correct
 /-- The headline theorem. -/
-theorem mergeSort_correct {α : Type} (le : α → α → Bool)
-    (trans : ∀ a b c, le a b = true → le b c = true → le a c = true)
-    (total : ∀ a b, le a b = true ∨ le b a = true)
-    (l : List α) : Sorted le (mergeSort le l) ∧ (mergeSort le l).Perm l :=
-  ⟨mergeSort_sorted le trans total l, mergeSort_perm le l⟩
+theorem mergeSort_correct {α : Type} [LE α] [DecidableLE α]
+    (trans : ∀ a b c : α, a ≤ b → b ≤ c → a ≤ c)
+    (total : ∀ a b : α, a ≤ b ∨ b ≤ a)
+    (l : List α) : Sorted (mergeSort l) ∧ (mergeSort l).Perm l :=
+  ⟨mergeSort_sorted trans total l, mergeSort_perm l⟩
+-- ANCHOR_END: mergeSort_correct
 
 end MergeSort

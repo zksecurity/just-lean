@@ -16,7 +16,7 @@ decreasing_by u64
 
 theorem isSortedFrom_sorted (n : UInt64) (a : UInt64Array) :
     ∀ (m : Nat) (i : UInt64) hsz hn hi, m = n.toNat - i.toNat →
-    Sorted le64 (a.slice 0 i.toNat) → isSortedFrom n i a hsz hn hi = true → Sorted le64 (a.slice 0 n.toNat) := by
+    Sorted (a.slice 0 i.toNat) → isSortedFrom n i a hsz hn hi = true → Sorted (a.slice 0 n.toNat) := by
   intro m
   induction m using Nat.strongRecOn with
   | _ m ih =>
@@ -60,7 +60,7 @@ def sortAdaptive (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
   else xs
 
 /-- The adaptive sort (sorted check only) produces a sorted list. -/
-theorem sortAdaptive_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortAdaptive xs hsz).data.toList := by
+theorem sortAdaptive_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sortAdaptive xs hsz).data.toList := by
   rw [sortAdaptive]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   dsimp only
@@ -225,7 +225,7 @@ def sortAdaptive2 (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
   else xs
 
 /-- The adaptive sort produces a sorted list. -/
-theorem sortAdaptive2_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortAdaptive2 xs hsz).data.toList := by
+theorem sortAdaptive2_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sortAdaptive2 xs hsz).data.toList := by
   rw [sortAdaptive2]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   dsimp only
@@ -295,9 +295,9 @@ decreasing_by u64
 
 theorem scanFrom_spec (n : UInt64) (a : UInt64Array) :
     ∀ (m : Nat) (i : UInt64) (asc desc : Bool) hsz hn hi, m = n.toNat - i.toNat →
-    (asc = true → Sorted le64 (a.slice 0 i.toNat)) →
+    (asc = true → Sorted (a.slice 0 i.toNat)) →
     (desc = true → (a.slice 0 i.toNat).Pairwise (fun x y => y < x)) →
-    ((scanFrom n i a asc desc hsz hn hi).1 = true → Sorted le64 (a.slice 0 n.toNat)) ∧
+    ((scanFrom n i a asc desc hsz hn hi).1 = true → Sorted (a.slice 0 n.toNat)) ∧
     ((scanFrom n i a asc desc hsz hn hi).2 = true → (a.slice 0 n.toNat).Pairwise (fun x y => y < x)) := by
   intro m
   induction m using Nat.strongRecOn with
@@ -358,7 +358,7 @@ def sortAdaptive3 (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
   else xs
 
 /-- The single-scan adaptive sort produces a sorted list. -/
-theorem sortAdaptive3_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sortAdaptive3 xs hsz).data.toList := by
+theorem sortAdaptive3_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sortAdaptive3 xs hsz).data.toList := by
   rw [sortAdaptive3]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   dsimp only

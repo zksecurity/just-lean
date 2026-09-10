@@ -19,10 +19,10 @@ def mergeKernel (lo mid hi : UInt64) (src dst : UInt64Array)
     mergeLoop mid hi lo mid lo src dst
 
 theorem mergeKernel_spec (lo mid hi : UInt64) (src dst : UInt64Array) hsz hs hd hlo hmid
-    (hL : Sorted le64 (src.slice lo.toNat (mid.toNat - lo.toNat)))
-    (hR : Sorted le64 (src.slice mid.toNat (hi.toNat - mid.toNat))) :
+    (hL : Sorted (src.slice lo.toNat (mid.toNat - lo.toNat)))
+    (hR : Sorted (src.slice mid.toNat (hi.toNat - mid.toNat))) :
     (mergeKernel lo mid hi src dst hsz hs hd hlo hmid).1.slice lo.toNat (hi.toNat - lo.toNat) =
-      merge le64 (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat)) ∧
+      merge (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat)) ∧
     ∀ x, (x < lo.toNat ∨ hi.toNat ≤ x) → (mergeKernel lo mid hi src dst hsz hs hd hlo hmid).1.at' x = dst.at' x := by
   rw [mergeKernel]
   split
@@ -39,12 +39,12 @@ theorem mergeKernel_spec (lo mid hi : UInt64) (src dst : UInt64Array) hsz hs hd 
     refine ⟨?_, fun x hx => Fr x (by omega)⟩
     rw [show hi.toNat - lo.toNat = (mid.toNat - lo.toNat) + (hi.toNat - mid.toNat) by omega, slice_add,
       show lo.toNat + (mid.toNat - lo.toNat) = mid.toNat by omega, F, B, ew]
-    have hlen : (merge le64 (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat))).length =
+    have hlen : (merge (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat))).length =
         (mid.toNat - lo.toNat) + (hi.toNat - mid.toNat) := by
-      rw [(merge_perm le64 _ _).length_eq]; simp
+      rw [(merge_perm _ _).length_eq]; simp
     have hback : ((mergeBack (src.slice lo.toNat (mid.toNat - lo.toNat)).reverse
         (src.slice mid.toNat (hi.toNat - mid.toNat)).reverse).take (mid.toNat - lo.toNat)).reverse =
-        (merge le64 (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat))).drop
+        (merge (src.slice lo.toNat (mid.toNat - lo.toNat)) (src.slice mid.toNat (hi.toNat - mid.toNat))).drop
           (mid.toNat - lo.toNat) := by
       rw [drop_merge_eq _ _ hL hR, hlen, show mid.toNat - lo.toNat + (hi.toNat - mid.toNat) - (mid.toNat - lo.toNat) =
         mid.toNat - lo.toNat by omega]
@@ -136,7 +136,7 @@ theorem passLoop2_spec (n w : UInt64) (src : UInt64Array) (hw0 : 0 < w.toNat) :
         right; refine ⟨by omega, ?_⟩
         show (if lo + 2 * w ≤ n then lo + 2 * w else n).toNat = _; rw [if_neg hc]
     -- the two runs are sorted, and the remainder is still `w`-run-sorted
-    have hLs : Sorted le64 (src.slice lo.toNat (MID.toNat - lo.toNat)) := by
+    have hLs : Sorted (src.slice lo.toNat (MID.toNat - lo.toNat)) := by
       by_cases hcase : n.toNat - lo.toNat ≤ w.toNat
       · rw [show MID.toNat - lo.toNat = n.toNat - lo.toNat by omega]
         exact (chunkSorted_of_length_le hw0 (by simp; omega)).mp hcs
@@ -151,7 +151,7 @@ theorem passLoop2_spec (n w : UInt64) (src : UInt64Array) (hw0 : 0 < w.toNat) :
       · left; refine ⟨hcase, ?_⟩
         have := ((chunkSorted_of_lt hw0 (by simp; omega)).mp hcs).2
         rwa [show n.toNat - lo.toNat = w.toNat + (n.toNat - lo.toNat - w.toNat) by omega, drop_slice] at this
-    have hRs : Sorted le64 (src.slice MID.toNat (HI.toNat - MID.toNat)) := by
+    have hRs : Sorted (src.slice MID.toNat (HI.toNat - MID.toNat)) := by
       rcases hcs' with ⟨hgt, hcs'⟩ | hcase
       · by_cases h2 : n.toNat - lo.toNat - w.toNat ≤ w.toNat
         · have := (chunkSorted_of_length_le hw0 (by simp; omega)).mp hcs'
@@ -227,7 +227,7 @@ theorem passLoop2_spec (n w : UInt64) (src : UInt64Array) (hw0 : 0 < w.toNat) :
 theorem widthLoop2_spec (n : UInt64) (hn2 : n.toNat < 2 ^ 62) :
     ∀ (m : Nat) (w : UInt64) (src dst : UInt64Array) hn hs hd hw, m = n.toNat - w.toNat →
     ChunkSorted w.toNat (by omega) (src.slice 0 n.toNat) →
-    Sorted le64 ((widthLoop2 n w src dst hn hs hd hw).1.slice 0 n.toNat) ∧
+    Sorted ((widthLoop2 n w src dst hn hs hd hw).1.slice 0 n.toNat) ∧
     ((widthLoop2 n w src dst hn hs hd hw).1.slice 0 n.toNat).Perm (src.slice 0 n.toNat) := by
   intro m
   induction m using Nat.strongRecOn with
@@ -252,7 +252,7 @@ theorem widthLoop2_spec (n : UInt64) (hn2 : n.toNat < 2 ^ 62) :
     exact ⟨sorted_of_chunkSorted _ (by simp; omega) hcs, List.Perm.refl _⟩
 
 /-- The bidirectional bottom-up sort produces a sorted list. -/
-theorem sort2_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted le64 (sort2 xs hsz).data.toList := by
+theorem sort2_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sort2 xs hsz).data.toList := by
   rw [sort2]
   have hn : (xs.size.toUInt64).toNat = xs.size := by simp; omega
   obtain ⟨S, _⟩ := widthLoop2_spec xs.size.toUInt64 (by omega) _ 1 xs (zeros xs.size) (by omega) hn (by simp [hn])

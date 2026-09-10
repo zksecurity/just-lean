@@ -4,6 +4,7 @@ import MergeSort.Fast
 namespace MergeSort.BottomUp
 open UInt64Array
 
+-- ANCHOR: mergeLoop
 /-- Merge `src[i, mid)` and `src[j, hi)` (both sorted) into `dst[k, hi)`. -/
 def mergeLoop (mid hi i j k : UInt64) (src dst : UInt64Array)
     (hsz : dst.size < 2 ^ 64 := by u64)
@@ -34,6 +35,7 @@ def mergeLoop (mid hi i j k : UInt64) (src dst : UInt64Array)
   else ⟨dst, rfl⟩
 termination_by hi.toNat - k.toNat
 decreasing_by all_goals u64
+-- ANCHOR_END: mergeLoop
 
 
 end MergeSort.BottomUp

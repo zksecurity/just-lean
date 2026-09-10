@@ -7,9 +7,11 @@ import MergeSort.Export
 open Verso.Genre Manual
 open Verso.Genre.Manual.InlineLean
 open JustLean
+open Verso.Code.External
 
 set_option pp.rawOnError true
 set_option verso.code.warnLineLength 0
+set_option verso.exampleProject ".."
 
 #doc (Manual) "Part 2: make it fast, keep the proof" =>
 
@@ -37,13 +39,32 @@ and nothing for `UInt64`. So we make one, in the same way the standard library m
 The type has a _model_, an ordinary `Array UInt64`, and the proofs are about the model. At runtime,
 each operation is a line of C on the flat buffer, attached with `@[extern c inline]`:
 
-{src UInt64Array}
+```anchor UInt64Array (module := MergeSort.UInt64Array)
+/-- An unboxed array of `UInt64`. The field is the *model* used by proofs; at runtime the value is a
+    flat `lean_sarray` of 8-byte elements, and every operation below is implemented by inline C. -/
+structure UInt64Array where
+  /-- The model: the elements as an ordinary `Array`. Never used at runtime. -/
+  data : Array UInt64
+```
 
-{src UInt64Array.get}
+```anchor get (module := MergeSort.UInt64Array)
+/-- Read element `i`. No bounds check at runtime: the proof `h` is the bounds check. -/
+@[extern c inline "((uint64_t*)lean_sarray_cptr(#1))[#2]"]
+def get (a : @& UInt64Array) (i : UInt64) (h : i.toNat < a.size := by u64) : UInt64 := a.data[i.toNat]
+```
 
-{src UInt64Array.set}
+```anchor set (module := MergeSort.UInt64Array)
+/-- Write element `i`. In place if `a` is unshared, otherwise copy-on-write. -/
+@[extern c inline "({ lean_object* _a = #1; if (__builtin_expect(!lean_is_exclusive(_a), 0)) _a = lean_copy_float_array(_a); ((uint64_t*)lean_sarray_cptr(_a))[#2] = #3; _a; })"]
+def set (a : UInt64Array) (i : UInt64) (v : UInt64) (h : i.toNat < a.size := by u64) : UInt64Array :=
+  ⟨a.data.set i.toNat v h⟩
+```
 
-{src UInt64Array.zeros}
+```anchor zeros (module := MergeSort.UInt64Array)
+/-- A zero-filled array of length `n`. -/
+@[extern c inline "({ size_t _n = lean_unbox(#1); lean_object* _a = lean_alloc_sarray(8, _n, _n); __builtin_memset(lean_sarray_cptr(_a), 0, 8 * _n); _a; })"]
+def zeros (n : @& Nat) : UInt64Array := ⟨Array.replicate n 0⟩
+```
 
 This is the point where something is trusted rather than proved, so it deserves to be spelled out.
 The theorems on this page are about the model. The claim that the C above implements the model is
@@ -99,7 +120,38 @@ advances the index of the side it came from by adding 0 or 1. There is no branch
 and the C compiler turns the selects into conditional moves. This one change is worth about 40%
 compared to an `if`, because a branch on random data is mispredicted half the time.
 
-{src MergeSort.BottomUp.mergeLoop}
+```anchor mergeLoop (module := MergeSort.BottomUpMerge)
+/-- Merge `src[i, mid)` and `src[j, hi)` (both sorted) into `dst[k, hi)`. -/
+def mergeLoop (mid hi i j k : UInt64) (src dst : UInt64Array)
+    (hsz : dst.size < 2 ^ 64 := by u64)
+    (hs : hi.toNat ≤ src.size := by u64) (hd : hi.toNat ≤ dst.size := by u64)
+    (hmid : mid.toNat ≤ hi.toNat := by u64) (hi' : i.toNat ≤ mid.toNat := by u64)
+    (hj : j.toNat ≤ hi.toNat := by u64) (hinv : i.toNat + j.toNat = k.toNat + mid.toNat := by u64) :
+    { b : UInt64Array // b.size = dst.size } :=
+  if hk : k < hi then
+    have hk : k.toNat < hi.toNat := hk
+    if hi'' : i < mid then
+      have hi'' : i.toNat < mid.toNat := hi''
+      if hj' : j < hi then
+        have hj' : j.toNat < hi.toNat := hj'
+        -- Branchless step: read both candidates, select the smaller one, advance its index.
+        -- (The C compiler turns these selects into conditional moves: no branch to mispredict.)
+        let x := src[i]
+        let y := src[j]
+        let takeLeft : Bool := decide (x ≤ y)
+        let di : UInt64 := if takeLeft then 1 else 0
+        have hdi : di.toNat ≤ 1 := by show (if takeLeft then (1 : UInt64) else 0).toNat ≤ 1; split <;> decide
+        Fast.castSize (mergeLoop mid hi (i + di) (j + (1 - di)) (k + 1) src
+          (dst.set k (if takeLeft then x else y))) (by simp)
+      else
+        Fast.castSize (mergeLoop mid hi (i + 1) j (k + 1) src (dst.set k (src[i]))) (by simp)
+    else
+      have hi'' : ¬ i.toNat < mid.toNat := hi''
+      Fast.castSize (mergeLoop mid hi i (j + 1) (k + 1) src (dst.set k (src[j]))) (by simp)
+  else ⟨dst, rfl⟩
+termination_by hi.toNat - k.toNat
+decreasing_by all_goals u64
+```
 
 The proofs in the signature are the loop invariants: both runs lie inside the buffers, `i` is inside
 the left run, `j` inside the right one, and the output position `k` is where it should be. All of
@@ -112,11 +164,51 @@ branchless code.
 A pass merges adjacent pairs of runs and stops at the end; the width loop doubles the run length
 until it covers the array:
 
-{src MergeSort.BottomUp.passLoop}
+```anchor passLoop (module := MergeSort.BottomUp)
+/-- One pass: merge the runs `[lo, lo+w)` and `[lo+w, lo+2w)` (clipped to `n`) from `src` into
+    `dst`, then continue at `lo + 2w`. -/
+def passLoop (n w lo : UInt64) (src dst : UInt64Array)
+    (hn : n.toNat < 2 ^ 62 := by u64) (hs : n.toNat ≤ src.size := by u64)
+    (hd : n.toNat ≤ dst.size := by u64) (hdsz : dst.size < 2 ^ 64 := by u64)
+    (hw : 1 ≤ w.toNat ∧ w.toNat < n.toNat := by u64) : { b : UInt64Array // b.size = dst.size } :=
+  if h : lo < n then
+    have h : lo.toNat < n.toNat := h
+    let mid := if lo + w ≤ n then lo + w else n
+    let hi := if lo + 2 * w ≤ n then lo + 2 * w else n
+    have hmid : mid.toNat = min (lo.toNat + w.toNat) n.toNat := by
+      show (if lo + w ≤ n then lo + w else n).toNat = _; split <;> u64
+    have hhi : hi.toNat = min (lo.toNat + 2 * w.toNat) n.toNat := by
+      show (if lo + 2 * w ≤ n then lo + 2 * w else n).toNat = _; split <;> u64
+    let ⟨b, hb⟩ := mergeLoop mid hi lo mid lo src dst
+    Fast.castSize (passLoop n w (lo + 2 * w) src b) hb
+  else ⟨dst, rfl⟩
+termination_by n.toNat - lo.toNat
+decreasing_by u64
+```
 
-{src MergeSort.BottomUp.widthLoop}
+```anchor widthLoop (module := MergeSort.BottomUp)
+/-- Double the run length until it covers the array; the result is the buffer that was last
+    written (or `src` itself if nothing had to be done). -/
+def widthLoop (n w : UInt64) (src dst : UInt64Array)
+    (hn : n.toNat < 2 ^ 62 := by u64) (hs : n.toNat = src.size := by u64)
+    (hd : n.toNat = dst.size := by u64) (hw : 1 ≤ w.toNat := by u64) :
+    { b : UInt64Array // b.size = src.size } :=
+  if h : w < n then
+    have h : w.toNat < n.toNat := h
+    let ⟨b, hb⟩ := passLoop n w 0 src dst
+    Fast.castSize (widthLoop n (2 * w) b src (hs := by rw [hb]; exact hd)) (by omega)
+  else ⟨src, rfl⟩
+termination_by n.toNat - w.toNat
+decreasing_by u64
+```
 
-{src MergeSort.BottomUp.sort}
+```anchor sort (module := MergeSort.BottomUp)
+/-- Bottom-up merge sort of an unboxed `UInt64` array, in place (plus one scratch buffer). -/
+def sort (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : UInt64Array :=
+  let n : UInt64 := xs.size.toUInt64
+  have hn : n.toNat = xs.size := by simp [n]; omega
+  (widthLoop n 1 xs (zeros xs.size)).1
+```
 
 The `2 ^ 62` bound on the size is there so that `2 * w` and `lo + 2 * w` cannot overflow a `UInt64`.
 
@@ -152,34 +244,73 @@ tag := "part-2-proof"
 The specification is the one from Part 1, and Part 1's `merge` is used as the reference: what the
 loop computes is described as a list. To connect the two, a range of the array is turned into a list:
 
-{src UInt64Array.slice}
+```anchor slice (module := MergeSort.Slice)
+/-- The list `[a[off], a[off+1], ..., a[off+len-1]]`. -/
+def slice (a : UInt64Array) (off len : Nat) : List UInt64 :=
+  (List.range len).map (fun t => a.at' (off + t))
+```
 
 Every loop gets a theorem of the same shape: the slice it wrote equals some list function of the
 slices it read, and every position outside that range is unchanged. The second half, the _frame_
 clause, is what lets the theorem of one loop be used inside the proof of the next. For the merge loop:
 
-{sig MergeSort.BottomUp.mergeLoop_spec}
+```anchor mergeLoop_spec (module := MergeSort.BottomUpCorrect)
+/-- What the merge loop does to `dst[lo, hi)`; `src` is only read. -/
+theorem mergeLoop_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
+    ∀ (n : Nat) (i j k : UInt64) (dst : UInt64Array) hsz hs hd hmid hi' hj hinv,
+    n = hi.toNat - k.toNat → lo ≤ k.toNat →
+    (mergeLoop mid hi i j k src dst hsz hs hd hmid hi' hj hinv).1.slice lo (hi.toNat - lo) =
+      dst.slice lo (k.toNat - lo) ++
+        merge (src.slice i.toNat (mid.toNat - i.toNat)) (src.slice j.toNat (hi.toNat - j.toNat)) ∧
+    ∀ x, (x < k.toNat ∨ hi.toNat ≤ x) →
+      (mergeLoop mid hi i j k src dst hsz hs hd hmid hi' hj hinv).1.at' x = dst.at' x
+```
 
 The proof is by strong induction on `hi - k`: unfold one step of the loop, apply the induction
 hypothesis to the array after the write, and rewrite slices. One lemma from `Slice.lean` does most of
 the work, namely that a write outside a range does not change the slice of that range:
 
-{sig UInt64Array.slice_set_of_not_mem}
+```anchor slice_set_of_not_mem (module := MergeSort.Slice)
+/-- `slice` only depends on the elements in range: writing outside the range changes nothing. -/
+theorem slice_set_of_not_mem (a : UInt64Array) (i : UInt64) (v : UInt64) (hi) (off len : Nat)
+    (h : i.toNat < off ∨ off + len ≤ i.toNat) : (a.set i v hi).slice off len = a.slice off len
+```
 
 A pass merges adjacent runs; the list function that describes it, {name}`MergeSort.BottomUp.mergeRuns`, is
 defined by recursion on the list, and a short theory says that a pass turns sorted runs of length
 `w` into sorted runs of length `2w` ({name}`MergeSort.BottomUp.chunkSorted_mergeRuns`) and is a permutation
 ({name}`MergeSort.BottomUp.mergeRuns_perm`). The pass and width loops then have the expected statements:
 
-{sig MergeSort.BottomUp.passLoop_spec}
+```anchor passLoop_spec (module := MergeSort.BottomUpCorrect)
+/-- What one pass does: `dst[lo, n)` becomes the merged runs of `src[lo, n)`; nothing else changes. -/
+theorem passLoop_spec (n w : UInt64) (src : UInt64Array) (hw0 : 0 < w.toNat) :
+    ∀ (m : Nat) (lo : UInt64) (dst : UInt64Array) hn hs hd hdsz hw, m = n.toNat - lo.toNat →
+    (passLoop n w lo src dst hn hs hd hdsz hw).1.slice lo.toNat (n.toNat - lo.toNat) =
+      mergeRuns w.toNat hw0 (src.slice lo.toNat (n.toNat - lo.toNat)) ∧
+    ∀ x, (x < lo.toNat ∨ n.toNat ≤ x) →
+      (passLoop n w lo src dst hn hs hd hdsz hw).1.at' x = dst.at' x
+```
 
-{sig MergeSort.BottomUp.widthLoop_spec}
+```anchor widthLoop_spec (module := MergeSort.BottomUpCorrect)
+/-- Doubling the run length until it covers the array yields a sorted permutation. -/
+theorem widthLoop_spec (n : UInt64) (hn2 : n.toNat < 2 ^ 62) :
+    ∀ (m : Nat) (w : UInt64) (src dst : UInt64Array) hn hs hd hw, m = n.toNat - w.toNat →
+    ChunkSorted w.toNat (by omega) (src.slice 0 n.toNat) →
+    Sorted ((widthLoop n w src dst hn hs hd hw).1.slice 0 n.toNat) ∧
+    ((widthLoop n w src dst hn hs hd hw).1.slice 0 n.toNat).Perm (src.slice 0 n.toNat)
+```
 
 And the sort itself:
 
-{sig MergeSort.BottomUp.sort_sorted}
+```anchor sort_sorted (module := MergeSort.BottomUpCorrect)
+/-- The bottom-up sort produces a sorted list. -/
+theorem sort_sorted (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : Sorted (sort xs hsz).data.toList
+```
 
-{sig MergeSort.BottomUp.sort_perm}
+```anchor sort_perm (module := MergeSort.BottomUpCorrect)
+/-- The bottom-up sort produces a permutation of its input. -/
+theorem sort_perm (xs : UInt64Array) (hsz : xs.size < 2 ^ 62) : (sort xs hsz).data.toList.Perm xs.data.toList
+```
 
 The proofs are about 250 lines for the loops plus 110 lines of list theory. Two habits made them
 go smoothly. Right after `if h : k < n`, restate the hypothesis in `Nat` form
@@ -230,7 +361,12 @@ A `UInt64Array` is a Lean scalar array, so a C program can allocate one, fill th
 the sort and read the result from the same buffer. There is no marshalling. The Lean side is an
 exported function:
 
-{src MergeSort.sortExport}
+```anchor sortExport (module := MergeSort.Export)
+/-- Exported symbol for other languages. The size precondition is checked at runtime. -/
+@[export mergesort_sort_u64]
+def sortExport (xs : UInt64Array) : UInt64Array :=
+  if h : xs.size < 2 ^ 62 then DriftSort.sort xs h else xs
+```
 
 The C side (`ffi/main.c`) initialises the Lean runtime and the module, then does exactly that:
 
