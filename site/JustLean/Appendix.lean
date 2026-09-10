@@ -9,7 +9,15 @@ set_option pp.rawOnError true
 
 #doc (Manual) "Appendix: reproducing and pitfalls" =>
 
+%%%
+file := "appendix"
+tag := "appendix"
+%%%
+
 # Reproducing everything
+%%%
+tag := "reproduce"
+%%%
 
 The repository is [zksecurity/just-lean](https://github.com/zksecurity/just-lean). `check.sh` builds
 the library, cross-checks every sort against a reference sort on dozens of sizes, three seeds and up to eight input shapes,
@@ -41,6 +49,9 @@ This site is built from `site/` with `lake build && lake exe just-lean-site`, wh
 Lean block against the library, compiles and runs the Part 1 program, and writes HTML to `_out/`.
 
 # Pitfalls, in the order we met them
+%%%
+tag := "pitfalls"
+%%%
 
 These are the things that cost the most time. None of them is documented in one place, and each of
 them is easy to check for.
@@ -81,6 +92,9 @@ them is easy to check for.
     which is the size of most of the effects above.
 
 # About
+%%%
+tag := "about"
+%%%
 
 The code, the proofs and this text were produced with Claude (Anthropic) over two days in September
 2026, directed by the author. Everything that matters is checked by Lean; the prose is the part to

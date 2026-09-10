@@ -12,12 +12,20 @@ set_option verso.code.warnLineLength 0
 
 #doc (Manual) "Part 3: Vec::sort territory" =>
 
+%%%
+file := "part-3"
+tag := "part-3"
+%%%
+
 Part 2's sort does the same work on every input and takes about 2.5 times as long as Rust's
 `Vec::sort` on random data. This part closes most of that gap by porting the algorithm behind
 `Vec::sort`, driftsort, to Lean and verifying it. The details are in the repository; this page says
 what the algorithm is, what was proved, and what came out.
 
 # What Vec::sort does
+%%%
+tag := "what-vec-sort-does"
+%%%
 
 Rust's stable sort (`core::slice::sort::stable`, "driftsort") is a merge sort that adapts to the
 input. Where the time goes on one million `u64`, in milliseconds:
@@ -69,6 +77,9 @@ The Rust source is about 1900 lines across four files. The Lean version, {name}`
 line-by-line translation of it for `u64` in which every array access carries its bounds proof.
 
 # The proof
+%%%
+tag := "part-3-proof"
+%%%
 
 The verified sort is 540 lines; its proofs are 1400. The statements follow Part 2's pattern. Every
 kernel gets a theorem that says what slice it wrote, as a list function of the slices it read, and
@@ -100,6 +111,9 @@ Both depend on `propext`, `Classical.choice` and `Quot.sound` only; `check.sh` p
 every theorem in the repository.
 
 # Making it fast
+%%%
+tag := "making-it-fast"
+%%%
 
 The first verified version ran at 41 ms on a million random `u64`, against 19 for Rust. Five changes
 brought it to 27, all of them measured one at a time with interleaved runs on the same input, and none
@@ -131,6 +145,9 @@ Three of the five came from reading the generated C and its assembly rather than
 compiled code is in `.lake/build/ir`, and it is readable.
 
 # Results
+%%%
+tag := "results"
+%%%
 
 Interleaved rounds on the same inputs, medians, milliseconds. Rust is `Vec::sort` compiled with
 `-O3`.
@@ -184,6 +201,9 @@ that check; unrolling it did not help. On inputs with structure the two are clos
 sort is ahead on some of them.
 
 # What is not verified
+%%%
+tag := "not-verified"
+%%%
 
 The same things as in Part 2: the C behind the array primitives, and the Lean toolchain. What is
 verified is the sort you get from `lake exe sortdemo` and from the C program in `ffi/`.

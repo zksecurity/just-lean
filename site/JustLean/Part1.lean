@@ -8,10 +8,18 @@ set_option verso.code.warnLineLength 0
 
 #doc (Manual) "Part 1: merge sort, and a proof that it sorts" =>
 
+%%%
+file := "part-1"
+tag := "part-1"
+%%%
+
 This part is self-contained: the code on this page is the whole of `MergeSort/Simple.lean` in the
 repository, and it is checked when this page is built. Hover over any name to see its type.
 
 # The specification
+%%%
+tag := "spec"
+%%%
 
 A list is sorted when every element is `le` every later element. Lean's `List.Pairwise` says exactly
 that, so the specification is one line:
@@ -29,6 +37,9 @@ The comparison `le` is a `Bool`-valued function rather than a `Prop`, so that th
 be run and reasoned about.
 
 # The algorithm
+%%%
+tag := "algorithm"
+%%%
 
 `merge` walks two lists and takes the smaller head at each step. Lean checks that it terminates by
 itself, because each recursive call is on a structurally smaller argument.
@@ -67,6 +78,9 @@ That is the program. It runs as it stands:
 ```
 
 # The proof: permutation
+%%%
+tag := "proof-permutation"
+%%%
 
 Because `merge` and `mergeSort` are recursive definitions, Lean derives an induction principle for
 each one (`merge.induct`, `mergeSort.induct`) whose cases are exactly the cases of the definition.
@@ -103,6 +117,9 @@ theorem mergeSort_perm {α : Type} (le : α → α → Bool) (l : List α) :
 ```
 
 # The proof: sortedness
+%%%
+tag := "proof-sortedness"
+%%%
 
 A merge of two sorted lists is sorted, provided `le` is transitive and total. These two facts about
 `le` are all the proof needs, and they are stated as hypotheses rather than assumed, so `mergeSort`
@@ -197,6 +214,9 @@ extensionality and quotients); there is no `sorry` and nothing else was assumed.
 ```
 
 # Compile and run
+%%%
+tag := "compile-and-run"
+%%%
 
 A `main` that reads numbers from standard input and prints them sorted:
 

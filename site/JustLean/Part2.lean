@@ -13,6 +13,11 @@ set_option verso.code.warnLineLength 0
 
 #doc (Manual) "Part 2: make it fast, keep the proof" =>
 
+%%%
+file := "part-2"
+tag := "part-2"
+%%%
+
 Part 1's sort spends its time on memory: every number is a heap object, every list cell is another,
 and each merge pass allocates a new list. Two changes fix that, and neither makes the program harder
 to read: sort an array of unboxed 64-bit integers, in place, and index it with `UInt64` instead of
@@ -20,6 +25,9 @@ to read: sort an array of unboxed 64-bit integers, in place, and index it with `
 proof by its statements; the tactic scripts are in the repository.
 
 # An unboxed array
+%%%
+tag := "unboxed-array"
+%%%
 
 `Array UInt64` is not what it sounds like: each element is a separate heap object, because the
 `Array` type is generic and stores pointers. Lean's runtime does have flat arrays of fixed-size
@@ -49,6 +57,9 @@ this is always the case.
 The file is 110 lines, of which the `extern` snippets are the trusted part.
 
 # The sort
+%%%
+tag := "bottom-up-sort"
+%%%
 
 A bottom-up merge sort needs no recursion: pass one merges runs of length 1 into runs of length 2, the
 next pass runs of length 2 into 4, and so on. Each pass reads one buffer and writes the other, then the
@@ -82,6 +93,9 @@ until it covers the array:
 The `2 ^ 62` bound on the size is there so that `2 * w` and `lo + 2 * w` cannot overflow a `UInt64`.
 
 # Three things the runtime cares about
+%%%
+tag := "runtime"
+%%%
 
 Writing the loops as tail-recursive functions rather than `for` loops is deliberate. These three
 points cost between 20% and a factor of twenty when we got them wrong, and none of them is visible in
@@ -103,6 +117,9 @@ the types.
 them once `simp` has rewritten `(i + 1).toNat` to `i.toNat + 1`. That is all `u64` does.
 
 # The proof
+%%%
+tag := "part-2-proof"
+%%%
 
 The specification is the one from Part 1, and Part 1's `merge` is used as the reference: what the
 loop computes is described as a list. To connect the two, a range of the array is turned into a list:
@@ -143,6 +160,9 @@ the original. And rewrite only the goal, with a small `simp only` set followed b
 `simp at *`.
 
 # Numbers
+%%%
+tag := "part-2-numbers"
+%%%
 
 The same algorithm in Rust, with the same tricks (branchless merge, two buffers, in place), is the
 fair comparison. One million and ten million random `u64`, milliseconds:
@@ -174,6 +194,9 @@ The verified Lean sort and the Rust translation are within measurement noise of 
 remaining gap to `Vec::sort` is algorithmic, and it is what Part 3 is about.
 
 # Calling it from C
+%%%
+tag := "from-c"
+%%%
 
 A `UInt64Array` is a Lean scalar array, so a C program can allocate one, fill the buffer, hand it to
 the sort and read the result from the same buffer. There is no marshalling. The Lean side is an
