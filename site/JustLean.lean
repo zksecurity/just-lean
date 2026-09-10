@@ -12,7 +12,7 @@ open JustLean
 #doc (Manual) "Just Lean: a verified, fast sort" =>
 
 %%%
-authors := ["Gregor Mitschabaude"]
+authors := ["Gregor Mitscha-Baude's clanker"]
 %%%
 
 Lean is mostly known as a proof assistant. It is also a programming language with a native compiler,
