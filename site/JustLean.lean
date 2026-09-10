@@ -27,7 +27,8 @@ This tutorial goes through that pipeline on one example, sorting, three times ov
 3. A port of the algorithm behind Rust's `Vec::sort`, verified, and only a little slower than the Rust version.
 
 All three compile to native binaries. Everything is total (no `partial`), nothing is `sorry`, and every
-theorem depends only on Lean's standard axioms. The prompt was this exchange:
+theorem depends only on Lean's standard axioms. What is trusted beyond Lean itself is one small thing,
+and Part 2 shows it. The prompt was this exchange:
 
 {tweet}
 
@@ -63,13 +64,6 @@ were measured).
   * 48
   * 555
 :::
-
-*What is trusted.* The theorems are about the _model_ of the array, an ordinary `Array UInt64`. At
-runtime the array is a flat buffer of 8-byte elements, and four one-line C snippets in one file
-(`MergeSort/UInt64Array.lean`: size, read, write, allocate) are trusted to implement the model. They
-are not proved; they are the same lines the standard library uses for `FloatArray`, with the element
-type changed, and Part 2 shows them side by side. Beyond that: Lean's kernel, compiler and runtime,
-and clang, which every compiled Lean program trusts.
 
 *Following along.* You need [elan](https://github.com/leanprover/elan) (which installs Lean and Lake from the
 `lean-toolchain` file) and a C toolchain. Rust is only needed for the comparison programs.
