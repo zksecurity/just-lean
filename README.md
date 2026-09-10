@@ -1,7 +1,7 @@
 # Just Lean: a verified, fast sort
 
 A tutorial on writing a program in Lean, proving it correct, and compiling and running it, on one
-example: sorting. The tutorial is at **https://zksecurity.xyz/just-lean/** (static HTML built from `site/`); this repository is
+example: sorting. The tutorial is at **https://just-lean.zksecurity.xyz/** (static HTML built from `site/`); this repository is
 the code it is built from.
 
 1. **Part 1** (`MergeSort/Simple.lean`): a merge sort on lists that is short enough to read, and a
