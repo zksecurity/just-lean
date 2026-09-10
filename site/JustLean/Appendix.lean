@@ -26,7 +26,7 @@ lake build                              # library, proofs, static and shared lib
 lake exe sortdemo 1000000               # the verified driftsort on a million numbers
 lake exe listbench 1000000              # Part 1's list sort
 lake exe msbench 1000000 [shape]        # Part 2 sorts; shape = random | runs8 | swaps1 | sawtooth
-lake exe driftbench 1000000 duel 10 [shape]   # Part 3: interleaved rounds against the port
+lake exe driftbench 1000000 duel 10 [shape]   # Part 3: interleaved rounds, min and median
 lake exe driftbench verify              # cross-check of the driftsort on all shapes
 lake exe verifyall                      # cross-check of the Part 2 sorts
 ./ffi/build.sh 1000000                  # the C program linked against the static library

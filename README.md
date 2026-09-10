@@ -13,7 +13,7 @@ the code it is built from.
 3. **Part 3** (`MergeSort/DriftSort.lean`, `DriftCorrect.lean`, `DriftCorrectLoop.lean`, plus the
    building blocks `Net4`, `Bidi`, `SkipMerge`, `FindRun`, `Adaptive`, ...): a verified port of the
    algorithm behind Rust's `Vec::sort` (driftsort); `DriftSort.sort_sorted`, `sort_perm`. 27 ms per
-   million random `u64`, against 19 for Rust and 28 for the unverified Lean port in `lab/Drift.lean`.
+   million random `u64`, against 19 for Rust.
 
 Everything is total (no `partial`), there is no `sorry`, and every theorem depends only on
 `propext`, `Classical.choice`, `Quot.sound`. The trusted part is the five `@[extern c inline]`
@@ -26,7 +26,7 @@ snippets in `UInt64Array.lean` (the runtime representation of the array), plus L
 lake exe sortdemo 1000000                   # the verified driftsort on a million numbers
 lake exe listbench 1000000                  # Part 1's list sort
 lake exe msbench 1000000 [shape]            # Part 2 sorts; shape = random | runs8 | swaps1 | sawtooth
-lake exe driftbench 1000000 duel 10 [shape] # Part 3, interleaved rounds against the unverified port
+lake exe driftbench 1000000 duel 10 [shape] # Part 3, interleaved rounds (also against the unverified port in lab/)
 ./ffi/build.sh 1000000                      # a C program linked against the static library
 cd lab/rust && cargo run --release -- 1000000 [shape]   # the Rust comparison programs
 ```

@@ -139,60 +139,51 @@ Interleaved rounds on the same inputs, medians, milliseconds. Rust is `Vec::sort
 *
   * input
   * verified `DriftSort.sort`
-  * Lean port, unverified
   * Part 2 sort
   * Rust `Vec::sort`
 *
   * 1M random
   * 27
-  * 28
   * 50
   * 19
 *
   * 10M random
   * 301
-  * 344
   * 590
   * 270
 *
   * 1M, 8 sorted runs
   * 4.9
-  * 7.8
   * 50
   * 7.3
 *
   * 1M sawtooth
   * 17
-  * 24
   * 50
   * 23
 *
   * 1M sorted
   * 0.5
-  * 0.6
   * 50
   * 0.4
 *
   * 1M reversed
   * 0.8
-  * 0.9
   * 50
   * 0.6
 *
   * 1M, 1% swaps
   * 22
-  * 22
   * 50
   * 14
 :::
 
-The verified sort is faster than the unverified port on every input, mostly because of the
-ping-pong quicksort. The remaining gap to Rust on random data is about 1.4×. Most of it is the
-exclusivity check on every store, which Rust does not need, and the partition scan being bound by
-instruction count rather than by that check; unrolling it did not help.
+The gap to Rust on random data is about 1.4×. Most of it is the exclusivity check on every store,
+which Rust does not need, and the partition scan being bound by instruction count rather than by
+that check; unrolling it did not help. On inputs with structure the two are close, and the verified
+sort is ahead on some of them.
 
 # What is not verified
 
-The same things as in Part 2: the C behind the array primitives, and the Lean toolchain. The
-unverified port in `lab/` is only a benchmark reference; nothing on this page depends on it. What is
+The same things as in Part 2: the C behind the array primitives, and the Lean toolchain. What is
 verified is the sort you get from `lake exe sortdemo` and from the C program in `ffi/`.
