@@ -222,8 +222,7 @@ tag := "runtime"
 %%%
 
 Writing the loops as tail-recursive functions rather than `for` loops is deliberate. These three
-points cost between 20% and a factor of twenty when we got them wrong, and none of them is visible in
-the types.
+points cost between 20% and a factor of twenty when we got them wrong.
 
 * *Consume the array on every path.* If a recursive function returns its array parameter unchanged in
   the base case, Lean's borrow inference marks the parameter as borrowed, and every write in the loop
