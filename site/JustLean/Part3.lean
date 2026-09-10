@@ -65,9 +65,8 @@ Four ideas account for the difference.
 * *Sorting networks at the bottom.* Blocks of up to 32 elements are sorted by fixed comparator
   networks and insertion, then merged bidirectionally.
 
-The Rust source is about 1900 lines across four files. The Lean port is a line-by-line translation of
-it for `u64` (`lab/Drift.lean`, unverified, kept for comparison), and the verified version is a second
-copy in which every array access carries its bounds proof: {name}`DriftSort.sort`.
+The Rust source is about 1900 lines across four files. The Lean version, {name}`DriftSort.sort`, is a
+line-by-line translation of it for `u64` in which every array access carries its bounds proof.
 
 # The proof
 
@@ -102,9 +101,9 @@ every theorem in the repository.
 
 # Making it fast
 
-The first verified version ran at 41 ms on a million random `u64`, against 28 for the unverified port
-and 19 for Rust. Five changes brought it to 27, all of them measured one at a time with interleaved
-runs on the same input, and none of them touched the specifications.
+The first verified version ran at 41 ms on a million random `u64`, against 19 for Rust. Five changes
+brought it to 27, all of them measured one at a time with interleaved runs on the same input, and none
+of them touched the specifications.
 
 1. *Batched stores.* The four-element sorting network writes its result with one exclusivity check. Logically it is
    four `set`s, and that is what the proof sees.
@@ -134,7 +133,7 @@ compiled code is in `.lake/build/ir`, and it is readable.
 # Results
 
 Interleaved rounds on the same inputs, medians, milliseconds. Rust is `Vec::sort` compiled with
-`-O3`; the Lean port is the unverified translation.
+`-O3`.
 
 :::table +header
 *

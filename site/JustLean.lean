@@ -24,7 +24,7 @@ This tutorial goes through that pipeline on one example, sorting, three times ov
 
 1. A merge sort on lists that is short enough to read, with a proof that is short enough to read.
 2. The same idea on an unboxed array of `UInt64`, fifteen times faster, with the proof kept.
-3. A port of the algorithm behind Rust's `Vec::sort`, verified, and a little faster than our port of it in unverified Lean.
+3. A port of the algorithm behind Rust's `Vec::sort`, verified, and only a little slower than the Rust version.
 
 All three compile to native binaries. Everything is total (no `partial`), nothing is `sorry`, and every
 theorem depends only on Lean's standard axioms. The prompt was this exchange:
