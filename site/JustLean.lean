@@ -59,9 +59,9 @@ were measured).
   * 19
   * 270
 *
-  * Rust, a plain merge sort on `Vec<u64>`
-  * 84
-  * 970
+  * Rust, the same bottom-up merge sort as Part 2
+  * 48
+  * 555
 :::
 
 *What is trusted.* The theorems are about the _model_ of the array, an ordinary `Array UInt64`. At runtime the array is a
