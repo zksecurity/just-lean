@@ -12,7 +12,7 @@ set_option pp.rawOnError true
 # Reproducing everything
 
 The repository is [zksecurity/just-lean](https://github.com/zksecurity/just-lean). `check.sh` builds
-the library, cross-checks every sort against a reference on 37 sizes, 3 seeds and 8 input shapes,
+the library, cross-checks every sort against a reference sort on dozens of sizes, three seeds and up to eight input shapes,
 prints the axioms of every theorem, greps for `sorry`, and runs the benchmark:
 
 ```

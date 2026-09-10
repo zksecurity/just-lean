@@ -46,7 +46,7 @@ compile. There is no bounds check at runtime.
 but the runtime reuses a buffer whose reference count is one. The hot loops below are written so that
 this is always the case.
 
-The file is 110 lines, of which the five `extern` snippets are the trusted part.
+The file is 110 lines, of which the `extern` snippets are the trusted part.
 
 # The sort
 

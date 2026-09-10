@@ -65,8 +65,8 @@ were measured).
 :::
 
 *What is trusted.* The theorems are about the _model_ of the array, an ordinary `Array UInt64`. At runtime the array is a
-flat buffer of 8-byte elements, and five short C snippets in one file
-(`MergeSort/UInt64Array.lean`: size, read, write, allocate, plus the batched writes) are trusted to
+flat buffer of 8-byte elements, and a handful of one-line C snippets in one file
+(`MergeSort/UInt64Array.lean`: size, read, write, allocate, and two batched writes) are trusted to
 implement the model. That is the same arrangement Lean's own `ByteArray` and `FloatArray` use. Beyond
 it: Lean's kernel, compiler and runtime, and clang.
 
