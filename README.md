@@ -26,6 +26,7 @@ snippets in `UInt64Array.lean` (the runtime representation of the array: the sam
 ./check.sh                                  # build, cross-check, axioms, no-sorry grep, benchmark
 lake exe sortdemo 1000000                   # the verified driftsort on a million numbers
 lake exe listbench 1000000                  # Part 1's list sort
+(cd part1 && lake build && echo 5 3 9 1 1 7 | lake exe part1)   # Part 1 as a standalone project
 lake exe msbench 1000000 [shape]            # Part 2 sorts; shape = random | runs8 | swaps1 | sawtooth
 lake exe driftbench 1000000 duel 10 [shape] # Part 3, interleaved rounds (also against the unverified port in lab/)
 ./ffi/build.sh 1000000                      # a C program linked against the static library
@@ -49,6 +50,7 @@ lake build subverso-extract-mod && lake build && lake exe just-lean-site   # HTM
 | path | what |
 |---|---|
 | `MergeSort/` | the library: sorts and proofs (see the tutorial for a map) |
+| `part1/` | Part 1 as a standalone Lake project: the list sort, its proof, and a `main` (`cd part1 && lake build && echo 5 3 9 1 1 7 \| lake exe part1`) |
 | `MergeSort/Export.lean`, `ffi/` | `@[export mergesort_sort_u64]` and a C program that calls it, zero copies |
 | `Main.lean`, `Bench.lean`, `DriftBench.lean`, `ListBench.lean`, `VerifyAll.lean` | demo, benchmarks, cross-checks |
 | `lab/Drift.lean` | the unverified line-by-line port of driftsort, for comparison |

@@ -352,17 +352,16 @@ def main : IO Unit := do
 ```
 :::
 
-To do the same on your machine, put the code of this page into a fresh Lake project:
+The same program is a standalone Lake project in the repository, `part1/`, one file with the code
+of this page and the `main` above:
 
 ```
-lake new sortdemo
-cd sortdemo
-# paste the definitions, theorems and main into Main.lean
+cd part1
 lake build
-echo 5 3 9 1 1 7 | ./.lake/build/bin/sortdemo
+echo 5 3 9 1 1 7 | lake exe part1
 ```
 
-`lake build` compiles Lean to C (`.lake/build/ir/Main.c`, if you want to look) and the C to a
+`lake build` compiles Lean to C (`part1/.lake/build/ir/Main.c`, if you want to look) and the C to a
 native executable with the clang that ships with Lean. The proofs are checked in the same step; they
 cost nothing at runtime, since a theorem compiles to nothing.
 

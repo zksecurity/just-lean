@@ -41,4 +41,5 @@ lake env lean /tmp/mergesort_axioms.lean
 grep -rn "sorry" MergeSort/ MergeSort.lean && { echo "sorry found in the library"; exit 1; } || echo "no sorry in the library"
 
 ./.lake/build/bin/driftbench verify
+(cd part1 && lake build && test "$(echo 5 3 9 1 1 7 | lake exe part1)" = "[1, 1, 3, 5, 7, 9]" && echo "part1 standalone project: ok")
 ./.lake/build/bin/msbench "${1:-1000000}"
