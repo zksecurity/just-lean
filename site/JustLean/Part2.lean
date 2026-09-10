@@ -51,6 +51,10 @@ structure UInt64Array where
 /-- Read element `i`. No bounds check at runtime: the proof `h` is the bounds check. -/
 @[extern c inline "((uint64_t*)lean_sarray_cptr(#1))[#2]"]
 def get (a : @& UInt64Array) (i : UInt64) (h : i.toNat < a.size := by u64) : UInt64 := a.data[i.toNat]
+
+/-- `a[i]` is `a.get i`; the bounds proof is found by the same tactic (see the end of this file). -/
+instance : GetElem UInt64Array UInt64 UInt64 (fun a i => i.toNat < a.size) where
+  getElem a i h := a.get i h
 ```
 
 ```anchor set (module := MergeSort.UInt64Array)
@@ -97,9 +101,9 @@ same loop costs about 13% more from the scalar checks on each access.
 
 Two things to notice about the accessors. `get` takes the bounds proof as an argument, and the
 argument has a default: `by u64`, a small tactic defined in the same file that unfolds `UInt64`
-arithmetic to `Nat` and calls `omega`. A `GetElem` instance routes `a[i]` to it and the same tactic
-discharges the bound, so the code reads like any other Lean array code, and an index that cannot be
-proved in bounds does not compile. There is no bounds check at runtime.
+arithmetic to `Nat` and calls `omega`. The `GetElem` instance next to it routes `a[i]` to `get` with
+the same tactic discharging the bound, so the code reads like any other Lean array code, and an index
+that cannot be proved in bounds does not compile. There is no bounds check at runtime.
 
 `set` writes in place when the array is not shared. That is the usual Lean rule: values are immutable,
 but the runtime reuses a buffer whose reference count is one. The hot loops below are written so that

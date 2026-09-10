@@ -34,7 +34,14 @@ def size (a : @& UInt64Array) : Nat := a.data.size
 /-- Read element `i`. No bounds check at runtime: the proof `h` is the bounds check. -/
 @[extern c inline "((uint64_t*)lean_sarray_cptr(#1))[#2]"]
 def get (a : @& UInt64Array) (i : UInt64) (h : i.toNat < a.size := by u64) : UInt64 := a.data[i.toNat]
+
+/-- `a[i]` is `a.get i`; the bounds proof is found by the same tactic (see the end of this file). -/
+instance : GetElem UInt64Array UInt64 UInt64 (fun a i => i.toNat < a.size) where
+  getElem a i h := a.get i h
 -- ANCHOR_END: get
+
+theorem getElem_eq_get (a : UInt64Array) (i : UInt64) (h : i.toNat < a.size) :
+    a[i]'h = a.get i h := rfl
 
 -- ANCHOR: set
 /-- Write element `i`. In place if `a` is unshared, otherwise copy-on-write. -/
@@ -53,14 +60,6 @@ def zeros (n : @& Nat) : UInt64Array := ⟨Array.replicate n 0⟩
     (a.set i v h).size = a.size := Array.size_set h
 @[simp] theorem size_zeros (n : Nat) : (zeros n).size = n := by simp [zeros, size]
 @[simp] theorem size_mk (d : Array UInt64) : (mk d).size = d.size := rfl
-
-/-- `a[i]` is `a.get i`, with the bounds proof found by `u64` (see the `get_elem_tactic_extensible`
-    rule at the end of this file). -/
-instance : GetElem UInt64Array UInt64 UInt64 (fun a i => i.toNat < a.size) where
-  getElem a i h := a.get i h
-
-theorem getElem_eq_get (a : UInt64Array) (i : UInt64) (h : i.toNat < a.size) :
-    a[i]'h = a.get i h := rfl
 
 theorem get_set (a : UInt64Array) (i j : UInt64) (v : UInt64) (hi hj) :
     (a.set i v hi).get j hj = if i = j then v else a.get j (by simpa using hj) := by
