@@ -35,6 +35,65 @@ def modulePath (mod : Name) : System.FilePath :=
   let rel := System.mkFilePath (mod.components.map toString) |>.addExtension "lean"
   if mod.getRoot == `Drift then ("lab" : System.FilePath) / rel else rel
 
+/-- Escape text for HTML. -/
+def escapeHtml (s : String) : String :=
+  s.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;" |>.replace "\"" "&quot;"
+
+def leanKeywords : List String :=
+  ["def", "theorem", "lemma", "structure", "inductive", "class", "instance", "abbrev", "where",
+   "namespace", "end", "open", "import", "section", "variable", "attribute", "deriving", "extends",
+   "if", "then", "else", "let", "have", "show", "match", "with", "fun", "do", "return", "for", "in",
+   "termination_by", "decreasing_by", "by", "at", "using", "from", "calc", "mut", "unless",
+   "induction", "simp", "simpa", "omega", "exact", "rw", "rfl", "intro", "intros", "refine", "rcases",
+   "obtain", "cases", "apply", "split", "constructor", "decide", "exists", "use", "all_goals",
+   "try", "first", "subst", "unfold", "dsimp", "generalize", "specialize", "exfalso", "contradiction",
+   "absurd", "trivial", "assumption", "left", "right", "ext", "funext", "congr", "norm_num", "ring",
+   "private", "protected", "partial", "noncomputable", "unsafe", "macro_rules", "syntax", "macro",
+   "tactic", "Type", "Prop", "Sort"]
+
+/-- A lexical highlighter for Lean source excerpts: comments, doc comments, strings, numbers,
+    keywords, attributes. Everything else is left as is. -/
+partial def highlightLean (src : String) : String :=
+  go src.toList "" 
+where
+  span (cls : String) (txt : String) : String := s!"<span class=\"{cls}\">{escapeHtml txt}</span>"
+  isIdChar (c : Char) : Bool := c.isAlphanum || c == '_' || c == '.' || c == '!' || c == '?' || c == '\'' || c == '#' || c.toNat > 127
+  takeWhile (p : Char → Bool) : List Char → List Char × List Char
+    | [] => ([], [])
+    | c :: cs => if p c then let (a, b) := takeWhile p cs; (c :: a, b) else ([], c :: cs)
+  blockComment : List Char → Nat → List Char × List Char
+    | [], _ => ([], [])
+    | '-' :: '/' :: cs, 1 => (['-', '/'], cs)
+    | '-' :: '/' :: cs, d + 1 => let (a, b) := blockComment cs d; ('-' :: '/' :: a, b)
+    | '/' :: '-' :: cs, d => let (a, b) := blockComment cs (d + 1); ('/' :: '-' :: a, b)
+    | c :: cs, d => let (a, b) := blockComment cs d; (c :: a, b)
+  go : List Char → String → String
+    | [], acc => acc
+    | '/' :: '-' :: cs, acc =>
+      let (a, b) := blockComment cs 1
+      let txt := String.ofList ('/' :: '-' :: a)
+      go b (acc ++ span (if txt.startsWith "/--" || txt.startsWith "/-!" then "src-doc" else "src-comment") txt)
+    | '-' :: '-' :: cs, acc =>
+      let (a, b) := takeWhile (· != '\n') cs
+      go b (acc ++ span "src-comment" (String.ofList ('-' :: '-' :: a)))
+    | '"' :: cs, acc =>
+      let (a, b) := takeWhile (· != '"') cs
+      let b := b.drop 1
+      go b (acc ++ span "src-string" (String.ofList ('"' :: a ++ ['"'])))
+    | '@' :: '[' :: cs, acc =>
+      let (a, b) := takeWhile (· != ']') cs
+      let b := b.drop 1
+      go b (acc ++ span "src-attr" (String.ofList ('@' :: '[' :: a ++ [']'])))
+    | c :: cs, acc =>
+      if c.isDigit then
+        let (a, b) := takeWhile (fun d => d.isAlphanum || d == '.') (c :: cs)
+        go b (acc ++ span "src-num" (String.ofList a))
+      else if isIdChar c then
+        let (a, b) := takeWhile isIdChar (c :: cs)
+        let w := String.ofList a
+        go b (acc ++ (if leanKeywords.contains w then span "src-kw" w else escapeHtml w))
+      else go cs (acc ++ escapeHtml (String.singleton c))
+
 /-- `{src Name}`: the source text of the declaration `Name`, as written in the library. -/
 @[block_command]
 meta def src : BlockCommandOf SrcConfig
@@ -52,8 +111,8 @@ meta def src : BlockCommandOf SrcConfig
     let last := ranges.range.endPos.line
     let text := String.intercalate "\n" (lines.drop (first - 1) |>.take (last - first + 1))
     let url := s!"{repoUrl}{rel}#L{first}-L{last}"
-    let link := s!"<p class=\"src-link\"><a href=\"{url}\">{rel}, lines {first}–{last}</a></p>"
-    ``(Verso.Doc.Block.concat #[Verso.Doc.Block.code $(quote text), Verso.Doc.Block.other (Block.rawHtml $(quote link)) #[]])
+    let html := s!"<pre class=\"src-code\"><code>{highlightLean text}</code></pre><p class=\"src-link\"><a href=\"{url}\">{rel}, lines {first}–{last}</a></p>"
+    ``(Verso.Doc.Block.other (Block.rawHtml $(quote html)) #[])
 
 structure RawArgs where
   html : String
