@@ -1,4 +1,4 @@
 .lake/
-rust/target/
+lab/rust/target/
 ffi/main
 *.o

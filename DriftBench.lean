@@ -1,4 +1,4 @@
-import MergeSort.Drift
+import Drift
 import MergeSort.Blocked
 import MergeSort.DriftSort
 open MergeSort

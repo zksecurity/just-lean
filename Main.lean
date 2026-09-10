@@ -1,4 +1,4 @@
-import MergeSort.Adaptive
+import MergeSort.DriftSort
 /-! `lake exe sortdemo [n]`: generate `n` pseudo-random 64-bit numbers, sort them with the verified
     sort, and print the smallest one plus the time taken. -/
 open MergeSort
@@ -17,7 +17,7 @@ def main (args : List String) : IO Unit := do
   let xs := UInt64Array.ofArray (gen n 42)
   if h : xs.size < 2 ^ 62 then
     let t0 ← IO.monoNanosNow
-    let ys ← IO.lazyPure (fun _ => BottomUp.sortAdaptive2 xs h)
+    let ys ← IO.lazyPure (fun _ => DriftSort.sort xs h)
     let t1 ← IO.monoNanosNow
     IO.println s!"sorted {n} numbers in {(t1 - t0).toFloat / 1000000.0} ms; smallest = {ys.toArray[0]?}"
   else IO.println "too many numbers"

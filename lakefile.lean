@@ -1,27 +1,29 @@
 import Lake
 open Lake DSL
+
 package mergesort
+
+/-- The verified sorts (Parts 1 to 3 of the tutorial). -/
 @[default_target]
 lean_lib MergeSort where
   defaultFacets := #[LeanLib.leanArtsFacet, LeanLib.staticFacet, LeanLib.sharedFacet]
-lean_exe msbench where
-  root := `Bench
-lean_exe dobench where
-  root := `DoBench
-lean_exe verifyall where
-  root := `VerifyAll
-lean_exe experiments where
-  root := `Experiments
-lean_exe doloop where
-  root := `DoLoop
+
+/-- Unverified lab code: the line-by-line port of Rust's driftsort used for comparison. -/
+lean_lib Lab where
+  srcDir := "lab"
+  roots := #[`Drift]
+
 lean_exe sortdemo where
   root := `Main
 
-lean_exe naturalruns where
-  root := `NaturalRuns
-
-lean_exe genericbench where
-  root := `GenericBench
+lean_exe msbench where
+  root := `Bench
 
 lean_exe driftbench where
   root := `DriftBench
+
+lean_exe verifyall where
+  root := `VerifyAll
+
+lean_exe listbench where
+  root := `ListBench

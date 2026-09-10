@@ -3,30 +3,28 @@
 -/
 namespace MergeSort
 
-variable {α : Type} (le : α → α → Bool)
-
 /-- The specification: every element is `le` every later element. -/
-def Sorted (l : List α) : Prop := l.Pairwise (fun a b => le a b = true)
+def Sorted {α : Type} (le : α → α → Bool) (l : List α) : Prop := l.Pairwise (fun a b => le a b = true)
 
 /-- Merge two sorted lists into one sorted list. -/
-def merge : List α → List α → List α
+def merge {α : Type} (le : α → α → Bool) : List α → List α → List α
   | [], ys => ys
   | xs, [] => xs
   | x :: xs, y :: ys =>
-    if le x y then x :: merge xs (y :: ys) else y :: merge (x :: xs) ys
+    if le x y then x :: merge le xs (y :: ys) else y :: merge le (x :: xs) ys
 
 /-- Split in half, sort both halves, merge. -/
-def mergeSort (l : List α) : List α :=
+def mergeSort {α : Type} (le : α → α → Bool) (l : List α) : List α :=
   if h : l.length ≤ 1 then l
   else
     let half := l.length / 2
-    merge le (mergeSort (l.take half)) (mergeSort (l.drop half))
+    merge le (mergeSort le (l.take half)) (mergeSort le (l.drop half))
 termination_by l.length
 decreasing_by all_goals simp; omega
 
 /-! ## The output is a permutation of the input -/
 
-theorem merge_perm (xs ys : List α) : (merge le xs ys).Perm (xs ++ ys) := by
+theorem merge_perm {α : Type} (le : α → α → Bool) (xs ys : List α) : (merge le xs ys).Perm (xs ++ ys) := by
   induction xs, ys using merge.induct le with
   | case1 ys => simp [merge]
   | case2 xs h => simp [merge]
@@ -35,7 +33,7 @@ theorem merge_perm (xs ys : List α) : (merge le xs ys).Perm (xs ++ ys) := by
     simp [merge, hle]
     exact (ih.cons y).trans List.perm_middle.symm
 
-theorem mergeSort_perm (l : List α) : (mergeSort le l).Perm l := by
+theorem mergeSort_perm {α : Type} (le : α → α → Bool) (l : List α) : (mergeSort le l).Perm l := by
   induction l using mergeSort.induct with
   | case1 l h => simp [mergeSort, h]
   | case2 l h half ih1 ih2 =>
@@ -44,11 +42,11 @@ theorem mergeSort_perm (l : List α) : (mergeSort le l).Perm l := by
 
 /-! ## The output is sorted -/
 
-theorem mem_merge {a : α} {xs ys : List α} : a ∈ merge le xs ys ↔ a ∈ xs ∨ a ∈ ys := by
+theorem mem_merge {α : Type} (le : α → α → Bool) {a : α} {xs ys : List α} : a ∈ merge le xs ys ↔ a ∈ xs ∨ a ∈ ys := by
   rw [(merge_perm le xs ys).mem_iff, List.mem_append]
 
 /-- Merging sorted lists gives a sorted list, provided `le` is transitive and total. -/
-theorem merge_sorted
+theorem merge_sorted {α : Type} (le : α → α → Bool)
     (trans : ∀ a b c, le a b = true → le b c = true → le a c = true)
     (total : ∀ a b, le a b = true ∨ le b a = true)
     {xs ys : List α} (hx : Sorted le xs) (hy : Sorted le ys) :
@@ -81,7 +79,7 @@ theorem merge_sorted
       · exact trans _ _ _ hyx ((List.pairwise_cons.mp hx).1 b hb)
     · exact hy'.1 b hb
 
-theorem mergeSort_sorted
+theorem mergeSort_sorted {α : Type} (le : α → α → Bool)
     (trans : ∀ a b c, le a b = true → le b c = true → le a c = true)
     (total : ∀ a b, le a b = true ∨ le b a = true)
     (l : List α) : Sorted le (mergeSort le l) := by
@@ -96,7 +94,7 @@ theorem mergeSort_sorted
     exact merge_sorted le trans total ih1 ih2
 
 /-- The headline theorem. -/
-theorem mergeSort_correct
+theorem mergeSort_correct {α : Type} (le : α → α → Bool)
     (trans : ∀ a b c, le a b = true → le b c = true → le a c = true)
     (total : ∀ a b, le a b = true ∨ le b a = true)
     (l : List α) : Sorted le (mergeSort le l) ∧ (mergeSort le l).Perm l :=
