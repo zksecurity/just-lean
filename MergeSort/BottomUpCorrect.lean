@@ -40,9 +40,9 @@ theorem mergeLoop_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
         have ej : (j + 1).toNat = j.toNat + 1 := by u64g
         dsimp only
         -- name the branchless step's ingredients (definitionally the ones in the goal)
-        let TL : Bool := decide (src.get i (by u64g) ≤ src.get j (by u64g))
+        let TL : Bool := decide (src[i]'(by u64g) ≤ src[j]'(by u64g))
         let DI : UInt64 := if TL then 1 else 0
-        let V : UInt64 := if TL then src.get i (by u64g) else src.get j (by u64g)
+        let V : UInt64 := if TL then src[i]'(by u64g) else src[j]'(by u64g)
         have hDI : DI.toNat ≤ 1 := by show (if TL then (1 : UInt64) else 0).toNat ≤ 1; split <;> decide
         obtain ⟨ih1, ih2⟩ := ih (hi.toNat - (k + 1).toNat) (by omega) (i + DI) (j + (1 - DI)) (k + 1)
           (dst.set k V (by u64g)) (by u64g) hs (by u64g) hmid (by u64g) (by u64g) (by u64g) rfl (by omega)
@@ -51,38 +51,38 @@ theorem mergeLoop_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
           simp only [UInt64.toNat_add, UInt64.toNat_sub, UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod]; omega
         refine ⟨?_, fun x hx => ?_⟩
         · rw [castSize_val, ih1, ek, hend]
-          by_cases hle : src.get i (by u64g) ≤ src.get j (by u64g)
+          by_cases hle : src[i]'(by u64g) ≤ src[j]'(by u64g)
           · have hTL : TL = true := by simp [TL, hle]
             have e1 : (i + DI).toNat = i.toNat + 1 := by rw [eDI]; simp only [DI, hTL, ite_true]; u64g
             have e2 : (j + (1 - DI)).toNat = j.toNat := by rw [eDJ]; simp only [DI, hTL, ite_true]; u64g
-            have hV : V = src.get i (by u64g) := by simp [V, hTL]
+            have hV : V = src[i]'(by u64g) := by simp [V, hTL]
             rw [e1, e2, hV]
             rw [show mid.toNat - i.toNat = (mid.toNat - (i.toNat + 1)) + 1 by omega, slice_cons,
               show hi.toNat - j.toNat = (hi.toNat - (j.toNat + 1)) + 1 by omega, slice_cons, merge_cons_cons]
-            simp only [get_eq_at'] at hle
-            simp [hle, get_eq_at']
+            simp only [getElem_eq_get, get_eq_at'] at hle
+            simp [hle, getElem_eq_get, get_eq_at']
           · have hTL : TL = false := by simp [TL, hle]
             have e1 : (i + DI).toNat = i.toNat := by rw [eDI]; simp only [DI, hTL, Bool.false_eq_true, ite_false]; u64g
             have e2 : (j + (1 - DI)).toNat = j.toNat + 1 := by
               rw [eDJ]; simp only [DI, hTL, Bool.false_eq_true, ite_false]; u64g
-            have hV : V = src.get j (by u64g) := by simp [V, hTL]
+            have hV : V = src[j]'(by u64g) := by simp [V, hTL]
             rw [e1, e2, hV]
             rw [show mid.toNat - i.toNat = (mid.toNat - (i.toNat + 1)) + 1 by omega, slice_cons,
               show hi.toNat - j.toNat = (hi.toNat - (j.toNat + 1)) + 1 by omega, slice_cons, merge_cons_cons]
-            simp only [get_eq_at'] at hle
-            simp [hle, get_eq_at']
+            simp only [getElem_eq_get, get_eq_at'] at hle
+            simp [hle, getElem_eq_get, get_eq_at']
         · rw [castSize_val, ih2 x (by omega)]
           exact hfr _ _ x hx
       · rename_i hj'
         have hj' : ¬ j.toNat < hi.toNat := hj'
         dsimp only
         obtain ⟨ih1, ih2⟩ := ih (hi.toNat - (k + 1).toNat) (by omega) (i + 1) j (k + 1)
-          (dst.set k (src.get i (by u64g)) (by u64g)) (by u64g) hs (by u64g) hmid (by u64g) hj (by u64g) rfl (by omega)
+          (dst.set k (src[i]'(by u64g)) (by u64g)) (by u64g) hs (by u64g) hmid (by u64g) hj (by u64g) rfl (by omega)
         refine ⟨?_, fun x hx => ?_⟩
         · rw [castSize_val, ih1, ek, hend, ei]
           rw [show hi.toNat - j.toNat = 0 by omega, slice_zero, merge_nil_right, merge_nil_right,
             show mid.toNat - i.toNat = (mid.toNat - (i.toNat + 1)) + 1 by omega, slice_cons]
-          simp [get_eq_at']
+          simp [getElem_eq_get, get_eq_at']
         · rw [castSize_val, ih2 x (by omega)]
           exact hfr _ _ x hx
     · rename_i hi''
@@ -90,12 +90,12 @@ theorem mergeLoop_spec (mid hi : UInt64) (src : UInt64Array) (lo : Nat) :
       have ej : (j + 1).toNat = j.toNat + 1 := by u64g
       dsimp only
       obtain ⟨ih1, ih2⟩ := ih (hi.toNat - (k + 1).toNat) (by omega) i (j + 1) (k + 1)
-        (dst.set k (src.get j (by u64g)) (by u64g)) (by u64g) hs (by u64g) hmid hi' (by u64g) (by u64g) rfl (by omega)
+        (dst.set k (src[j]'(by u64g)) (by u64g)) (by u64g) hs (by u64g) hmid hi' (by u64g) (by u64g) rfl (by omega)
       refine ⟨?_, fun x hx => ?_⟩
       · rw [castSize_val, ih1, ek, hend, ej]
         rw [show mid.toNat - i.toNat = 0 by omega, slice_zero, merge_nil_left, merge_nil_left,
           show hi.toNat - j.toNat = (hi.toNat - (j.toNat + 1)) + 1 by omega, slice_cons]
-        simp [get_eq_at']
+        simp [getElem_eq_get, get_eq_at']
       · rw [castSize_val, ih2 x (by omega)]
         exact hfr _ _ x hx
   · rename_i hk

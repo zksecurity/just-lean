@@ -19,18 +19,18 @@ def mergeLoop (mid hi i j k : UInt64) (src dst : UInt64Array)
         have hj' : j.toNat < hi.toNat := hj'
         -- Branchless step: read both candidates, select the smaller one, advance its index.
         -- (The C compiler turns these selects into conditional moves: no branch to mispredict.)
-        let x := src.get i
-        let y := src.get j
+        let x := src[i]
+        let y := src[j]
         let takeLeft : Bool := decide (x ≤ y)
         let di : UInt64 := if takeLeft then 1 else 0
         have hdi : di.toNat ≤ 1 := by show (if takeLeft then (1 : UInt64) else 0).toNat ≤ 1; split <;> decide
         Fast.castSize (mergeLoop mid hi (i + di) (j + (1 - di)) (k + 1) src
           (dst.set k (if takeLeft then x else y))) (by simp)
       else
-        Fast.castSize (mergeLoop mid hi (i + 1) j (k + 1) src (dst.set k (src.get i))) (by simp)
+        Fast.castSize (mergeLoop mid hi (i + 1) j (k + 1) src (dst.set k (src[i]))) (by simp)
     else
       have hi'' : ¬ i.toNat < mid.toNat := hi''
-      Fast.castSize (mergeLoop mid hi i (j + 1) (k + 1) src (dst.set k (src.get j))) (by simp)
+      Fast.castSize (mergeLoop mid hi i (j + 1) (k + 1) src (dst.set k (src[j]))) (by simp)
   else ⟨dst, rfl⟩
 termination_by hi.toNat - k.toNat
 decreasing_by all_goals u64

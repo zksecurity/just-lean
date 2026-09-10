@@ -94,25 +94,44 @@ where
         go b (acc ++ (if leanKeywords.contains w then span "src-kw" w else escapeHtml w))
       else go cs (acc ++ escapeHtml (String.singleton c))
 
+/-- The source text of a declaration, its file (relative to the repository) and its line range. -/
+meta def declSource (decl : Name) : DocElabM (String × System.FilePath × Nat × Nat) := do
+  let env ← getEnv
+  let some ranges ← findDeclarationRanges? decl
+    | throwError "No source range known for '{decl}'"
+  let some modIdx := env.getModuleIdxFor? decl
+    | throwError "'{decl}' is not from an imported module"
+  let modName := env.header.moduleNames[modIdx.toNat]!
+  let rel := modulePath modName
+  let contents ← IO.FS.readFile ((".." : System.FilePath) / rel)
+  let lines := contents.splitOn "\n"
+  let first := ranges.range.pos.line
+  let last := ranges.range.endPos.line
+  let text := String.intercalate "\n" (lines.drop (first - 1) |>.take (last - first + 1))
+  return (text, rel, first, last)
+
+meta def excerptHtml (text : String) (rel : System.FilePath) (first last : Nat) : String :=
+  let url := s!"{repoUrl}{rel}#L{first}-L{last}"
+  s!"<pre class=\"src-code\"><code>{highlightLean text}</code></pre><p class=\"src-link\"><a href=\"{url}\">{rel}, lines {first}–{last}</a></p>"
+
 /-- `{src Name}`: the source text of the declaration `Name`, as written in the library. -/
 @[block_command]
 meta def src : BlockCommandOf SrcConfig
   | ⟨decl⟩ => do
-    let env ← getEnv
-    let some ranges ← findDeclarationRanges? decl
-      | throwError "No source range known for '{decl}'"
-    let some modIdx := env.getModuleIdxFor? decl
-      | throwError "'{decl}' is not from an imported module"
-    let modName := env.header.moduleNames[modIdx.toNat]!
-    let rel := modulePath modName
-    let contents ← IO.FS.readFile ((".." : System.FilePath) / rel)
-    let lines := contents.splitOn "\n"
-    let first := ranges.range.pos.line
-    let last := ranges.range.endPos.line
-    let text := String.intercalate "\n" (lines.drop (first - 1) |>.take (last - first + 1))
-    let url := s!"{repoUrl}{rel}#L{first}-L{last}"
-    let html := s!"<pre class=\"src-code\"><code>{highlightLean text}</code></pre><p class=\"src-link\"><a href=\"{url}\">{rel}, lines {first}–{last}</a></p>"
-    ``(Verso.Doc.Block.other (Block.rawHtml $(quote html)) #[])
+    let (text, rel, first, last) ← declSource decl
+    ``(Verso.Doc.Block.other (Block.rawHtml $(quote (excerptHtml text rel first last))) #[])
+
+/-- `{sig Name}`: the statement of a theorem (or the signature of a definition) as written in the
+    library, without the proof or body: the source text up to the first `:=`. -/
+@[block_command]
+meta def sig : BlockCommandOf SrcConfig
+  | ⟨decl⟩ => do
+    let (text, rel, first, _) ← declSource decl
+    let stmt := match text.splitOn " :=" with
+      | [] => text
+      | t :: _ => t
+    let last := first + (stmt.splitOn "\n").length - 1
+    ``(Verso.Doc.Block.other (Block.rawHtml $(quote (excerptHtml stmt rel first last))) #[])
 
 structure RawArgs where
   html : String

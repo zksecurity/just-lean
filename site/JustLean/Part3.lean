@@ -103,9 +103,9 @@ Three invariants carry the proof.
 
 The two theorems about the entry point are the same as Part 2's:
 
-{docstring DriftSort.sort_sorted}
+{sig DriftSort.sort_sorted}
 
-{docstring DriftSort.sort_perm}
+{sig DriftSort.sort_perm}
 
 Both depend on `propext`, `Classical.choice` and `Quot.sound` only; `check.sh` prints the axioms of
 every theorem in the repository.
@@ -115,14 +115,11 @@ every theorem in the repository.
 tag := "making-it-fast"
 %%%
 
-The first verified version ran at 41 ms on a million random `u64`, against 19 for Rust. Five changes
-brought it to 27, all of them measured one at a time with interleaved runs on the same input, and none
+The first verified version ran at 41 ms on a million random `u64`, against 19 for Rust. Four changes
+brought it to 28, all of them measured one at a time with interleaved runs on the same input, and none
 of them touched the specifications.
 
-1. *Batched stores.* The four-element sorting network writes its result with one exclusivity check. Logically it is
-   four `set`s, and that is what the proof sees.
-
-2. *A ping-pong quicksort.* Rust's partition writes into the scratch buffer and copies the result
+1. *A ping-pong quicksort.* Rust's partition writes into the scratch buffer and copies the result
    back. The Lean version does not copy back: it recurses with the two buffers swapped, and a flag
    records which buffer the result must end up in. That saves one pass over the data per level. Rust
    cannot do this in general, since its element type may have a destructor; for `u64` it is free.
@@ -130,18 +127,18 @@ of them touched the specifications.
    range: a finished sibling's output lives in what the next call uses as scratch. The frame clause
    was already in the theorems, so the change to the proofs was mechanical.
 
-3. *One partition loop per mode.* The partition predicate was passed as a function of a `Bool`
+2. *One partition loop per mode.* The partition predicate was passed as a function of a `Bool`
    flag. The compiler had merged the literal `false` at the call site with another variable and
    specialised the loop on a variable, so the mode was tested per element. Two named predicates gave
    two loops.
 
-4. *Store before counting.* In the partition scan, writing the element before computing the 0/1
+3. *Store before counting.* In the partition scan, writing the element before computing the 0/1
    increment lets clang fold the increment into the compare (an `adc` instruction).
 
-5. *A fast path for one run.* If the initial scan finds that the whole input is one run, return it
+4. *A fast path for one run.* If the initial scan finds that the whole input is one run, return it
    without allocating the scratch buffer.
 
-Three of the five came from reading the generated C and its assembly rather than the Lean. The
+Three of the four came from reading the generated C and its assembly rather than the Lean. The
 compiled code is in `.lake/build/ir`, and it is readable.
 
 # Results
@@ -160,7 +157,7 @@ Interleaved rounds on the same inputs, medians, milliseconds. Rust is `Vec::sort
   * Rust `Vec::sort`
 *
   * 1M random
-  * 27
+  * 28
   * 50
   * 19
 *

@@ -12,12 +12,13 @@ the code it is built from.
    Matches the same algorithm in Rust (50 ms per million random `u64`).
 3. **Part 3** (`MergeSort/DriftSort.lean`, `DriftCorrect.lean`, `DriftCorrectLoop.lean`, plus the
    building blocks `Net4`, `Bidi`, `SkipMerge`, `FindRun`, `Adaptive`, ...): a verified port of the
-   algorithm behind Rust's `Vec::sort` (driftsort); `DriftSort.sort_sorted`, `sort_perm`. 27 ms per
+   algorithm behind Rust's `Vec::sort` (driftsort); `DriftSort.sort_sorted`, `sort_perm`. 28 ms per
    million random `u64`, against 19 for Rust.
 
 Everything is total (no `partial`), there is no `sorry`, and every theorem depends only on
-`propext`, `Classical.choice`, `Quot.sound`. The trusted part is the five `@[extern c inline]`
-snippets in `UInt64Array.lean` (the runtime representation of the array), plus Lean itself.
+`propext`, `Classical.choice`, `Quot.sound`. The trusted part is the four `@[extern c inline]`
+snippets in `UInt64Array.lean` (the runtime representation of the array: the same lines core uses for
+`FloatArray`, with `uint64_t` for `double`), plus Lean itself.
 
 ## Reproduce
 

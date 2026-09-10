@@ -52,7 +52,7 @@ were measured).
   * 590
 *
   * Part 3: verified driftsort
-  * 27
+  * 28
   * 300
 *
   * Rust `Vec::sort` (driftsort)
@@ -64,11 +64,12 @@ were measured).
   * 555
 :::
 
-*What is trusted.* The theorems are about the _model_ of the array, an ordinary `Array UInt64`. At runtime the array is a
-flat buffer of 8-byte elements, and a handful of one-line C snippets in one file
-(`MergeSort/UInt64Array.lean`: size, read, write, allocate, and two batched writes) are trusted to
-implement the model. That is the same arrangement Lean's own `ByteArray` and `FloatArray` use. Beyond
-it: Lean's kernel, compiler and runtime, and clang.
+*What is trusted.* The theorems are about the _model_ of the array, an ordinary `Array UInt64`. At
+runtime the array is a flat buffer of 8-byte elements, and four one-line C snippets in one file
+(`MergeSort/UInt64Array.lean`: size, read, write, allocate) are trusted to implement the model. They
+are not proved; they are the same lines the standard library uses for `FloatArray`, with the element
+type changed, and Part 2 shows them side by side. Beyond that: Lean's kernel, compiler and runtime,
+and clang, which every compiled Lean program trusts.
 
 *Following along.* You need [elan](https://github.com/leanprover/elan) (which installs Lean and Lake from the
 `lean-toolchain` file) and a C toolchain. Rust is only needed for the comparison programs.

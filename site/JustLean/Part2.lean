@@ -45,16 +45,44 @@ each operation is a line of C on the flat buffer, attached with `@[extern c inli
 
 {src UInt64Array.zeros}
 
-Two things to notice. `get` takes the bounds proof as an argument, and the argument has a default:
-`by u64`, a small tactic defined in the same file that unfolds `UInt64` arithmetic to `Nat` and calls
-`omega`. Call sites therefore look like `a.get i`, and a call that cannot be proved in bounds does not
-compile. There is no bounds check at runtime.
+This is the point where something is trusted rather than proved, so it deserves to be spelled out.
+The theorems on this page are about the model. The claim that the C above implements the model is
+not proved; it is read. That is the same arrangement the standard library uses for every array type.
+`FloatArray.uget` is declared `@[extern "lean_float_array_uget"]`, and its C in `lean.h` is:
+
+```
+static inline double lean_float_array_uget(b_lean_obj_arg a, size_t i) {
+    return lean_float_array_cptr(a)[i];
+}
+
+static inline lean_obj_res lean_float_array_uset(lean_obj_arg a, size_t i, double d) {
+    lean_obj_res r;
+    if (lean_is_exclusive(a)) r = a;
+    else r = lean_copy_float_array(a);
+    double * it = lean_float_array_cptr(r) + i;
+    *it = d;
+    return r;
+}
+```
+
+Ours is the same code with `uint64_t` in place of `double`. `Array.uget` and `Array.uset`, which
+Part 1's `List` code does not use but every array program does, are `extern` in the same way. So the
+trusted base of this part is Lean's trusted base plus four lines that a reader can compare with the
+lines above, and the cross-checks in `check.sh` exercise them against core's `Array.qsort` on
+thousands of inputs. It is a small thing to trust, but it is ours and not the standard library's, and
+a `UInt64Array` in the standard library would remove it. If you want zero lines of your own C today,
+sort `Array Nat` with `USize` indices instead: a `Nat` below 2^63 is a tagged machine word, and the
+same loop costs about 13% more from the scalar checks on each access.
+
+Two things to notice about the accessors. `get` takes the bounds proof as an argument, and the
+argument has a default: `by u64`, a small tactic defined in the same file that unfolds `UInt64`
+arithmetic to `Nat` and calls `omega`. A `GetElem` instance routes `a[i]` to it and the same tactic
+discharges the bound, so the code reads like any other Lean array code, and an index that cannot be
+proved in bounds does not compile. There is no bounds check at runtime.
 
 `set` writes in place when the array is not shared. That is the usual Lean rule: values are immutable,
 but the runtime reuses a buffer whose reference count is one. The hot loops below are written so that
 this is always the case.
-
-The file is 110 lines, of which the `extern` snippets are the trusted part.
 
 # The sort
 %%%
@@ -130,28 +158,28 @@ Every loop gets a theorem of the same shape: the slice it wrote equals some list
 slices it read, and every position outside that range is unchanged. The second half, the _frame_
 clause, is what lets the theorem of one loop be used inside the proof of the next. For the merge loop:
 
-{docstring MergeSort.BottomUp.mergeLoop_spec}
+{sig MergeSort.BottomUp.mergeLoop_spec}
 
 The proof is by strong induction on `hi - k`: unfold one step of the loop, apply the induction
 hypothesis to the array after the write, and rewrite slices. One lemma from `Slice.lean` does most of
 the work, namely that a write outside a range does not change the slice of that range:
 
-{docstring UInt64Array.slice_set_of_not_mem}
+{sig UInt64Array.slice_set_of_not_mem}
 
 A pass merges adjacent runs; the list function that describes it, {name}`MergeSort.BottomUp.mergeRuns`, is
 defined by recursion on the list, and a short theory says that a pass turns sorted runs of length
 `w` into sorted runs of length `2w` ({name}`MergeSort.BottomUp.chunkSorted_mergeRuns`) and is a permutation
 ({name}`MergeSort.BottomUp.mergeRuns_perm`). The pass and width loops then have the expected statements:
 
-{docstring MergeSort.BottomUp.passLoop_spec}
+{sig MergeSort.BottomUp.passLoop_spec}
 
-{docstring MergeSort.BottomUp.widthLoop_spec}
+{sig MergeSort.BottomUp.widthLoop_spec}
 
 And the sort itself:
 
-{docstring MergeSort.BottomUp.sort_sorted}
+{sig MergeSort.BottomUp.sort_sorted}
 
-{docstring MergeSort.BottomUp.sort_perm}
+{sig MergeSort.BottomUp.sort_perm}
 
 The proofs are about 250 lines for the loops plus 110 lines of list theory. Two habits made them
 go smoothly. Right after `if h : k < n`, restate the hypothesis in `Nat` form
