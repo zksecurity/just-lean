@@ -508,8 +508,8 @@ def createRun (v s : A) (lo hi minGoodRunLen : UInt64) (eager : Bool) : UInt64 �
 @[specialize] def collapse (quick : A → A → UInt64 → UInt64 → A × A) (lo scratchLen desired scanIdx : UInt64)
     (prevRun stackLen : UInt64) (runs depths : @& A) (v s : A) : UInt64 × UInt64 × A × A :=
   if h : 1 < stackLen ∧ get! depths (stackLen - 1) ≥ desired then
-    have h1 : 1 < stackLen.toNat := h.1
-    have hb := UInt64.toNat_lt stackLen
+    have _h1 : 1 < stackLen.toNat := h.1
+    have _hb := UInt64.toNat_lt stackLen
     let left := get! runs (stackLen - 1)
     let mergedLen := runLen left + runLen prevRun
     let start := lo + scanIdx - mergedLen
@@ -589,6 +589,204 @@ def quicksort (v s : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : U
       else (v, s)
 termination_by hi.toNat - lo.toNat
 decreasing_by all_goals u64
+
+/-- Scans for the ping-pong experiment: partition `v[i, hi)` into `s[lo, hi)` (same offsets), left part
+    at the front in order, right part at the back reversed. `sv` starts at `hi`. -/
+def ppScanLt (v : @& A) (s : A) (i hi pivot lo nl sv : UInt64) : A × UInt64 :=
+  if h : i < hi then
+    have h' : i.toNat < hi.toNat := h
+    have hb := UInt64.toNat_lt hi
+    let x := get! v i
+    let gl := lt x pivot
+    let sv := sv - 1
+    let s := set! s ((if gl then lo else sv) + nl) x
+    ppScanLt v s (i + 1) hi pivot lo (nl + (if gl then 1 else 0)) sv
+  else (s, nl)
+termination_by hi.toNat - i.toNat
+decreasing_by all_goals u64
+
+def ppScanLe (v : @& A) (s : A) (i hi pivot lo nl sv : UInt64) : A × UInt64 :=
+  if h : i < hi then
+    have h' : i.toNat < hi.toNat := h
+    have hb := UInt64.toNat_lt hi
+    let x := get! v i
+    let gl := !(lt pivot x)
+    let sv := sv - 1
+    let s := set! s ((if gl then lo else sv) + nl) x
+    ppScanLe v s (i + 1) hi pivot lo (nl + (if gl then 1 else 0)) sv
+  else (s, nl)
+termination_by hi.toNat - i.toNat
+decreasing_by all_goals u64
+
+/-- `ppScanLt`, four elements per exclusivity check (`set4i`). -/
+def ppScanLt4 (v : @& A) (s : A) (i hi pivot lo nl sv : UInt64) : A × UInt64 :=
+  if h : i < hi ∧ 4 ≤ hi - i then
+    have h' : i.toNat < hi.toNat := h.1
+    have hb := UInt64.toNat_lt hi
+    have h4 : 4 ≤ hi.toNat - i.toNat := by
+      have := UInt64.le_iff_toNat_le.mp h.2; rwa [UInt64.toNat_sub_of_le _ _ (UInt64.le_of_lt h.1)] at this
+    let x0 := get! v i
+    let x1 := get! v (i + 1)
+    let x2 := get! v (i + 2)
+    let x3 := get! v (i + 3)
+    let g0 := lt x0 pivot
+    let sv0 := sv - 1
+    let d0 := (if g0 then lo else sv0) + nl
+    let nl0 := nl + (if g0 then 1 else 0)
+    let g1 := lt x1 pivot
+    let sv1 := sv0 - 1
+    let d1 := (if g1 then lo else sv1) + nl0
+    let nl1 := nl0 + (if g1 then 1 else 0)
+    let g2 := lt x2 pivot
+    let sv2 := sv1 - 1
+    let d2 := (if g2 then lo else sv2) + nl1
+    let nl2 := nl1 + (if g2 then 1 else 0)
+    let g3 := lt x3 pivot
+    let sv3 := sv2 - 1
+    let d3 := (if g3 then lo else sv3) + nl2
+    let nl3 := nl2 + (if g3 then 1 else 0)
+    let s := set4i s d0 x0 d1 x1 d2 x2 d3 x3
+    ppScanLt4 v s (i + 4) hi pivot lo nl3 sv3
+  else if h : i < hi then
+    have h' : i.toNat < hi.toNat := h
+    have hb := UInt64.toNat_lt hi
+    let x := get! v i
+    let gl := lt x pivot
+    let sv := sv - 1
+    let s := set! s ((if gl then lo else sv) + nl) x
+    ppScanLt4 v s (i + 1) hi pivot lo (nl + (if gl then 1 else 0)) sv
+  else (s, nl)
+termination_by hi.toNat - i.toNat
+decreasing_by all_goals u64
+
+/-- Ping-pong `quicksort` (experiment): the data is in `a[lo, hi)`, the partition writes `b[lo, hi)` and the
+    recursion continues with the buffers swapped; nothing is copied back. The result lands in `b` if `toB`,
+    else in `a`; leaves copy their block over when needed. -/
+def quicksortPP (a b : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : UInt64) (toB : Bool) : A × A :=
+  if hlo : hi < lo then (a, b) else
+  have hlen : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.not_lt.mp hlo)
+  let len := hi - lo
+  if len ≤ smallSortThreshold then
+    if toB then
+      let b := copyRange a b lo lo len
+      (a, insertionSortShiftLeft b lo hi (lo + 1))
+    else (insertionSortShiftLeft a lo hi (lo + 1), b)
+  else if limit == 0 then
+    let (a, b) := driftSortEager a b lo hi scratchLen
+    if toB then (a, copyRange a b lo lo len) else (a, b)
+  else
+    let limit := limit - 1
+    let pivotPos := choosePivot a lo hi
+    let pivot := get! a pivotPos
+    let performEq := hasLA && !(lt la pivot)
+    let (b, lp) := if performEq then (b, 0) else ppScanLt a b lo hi pivot lo 0 hi
+    let performEq := performEq || lp == 0
+    if performEq then
+      let (b, midEq) := ppScanLe a b lo hi pivot lo 0 hi
+      let a := if toB then a else copyRange b a lo lo midEq
+      if h : 0 < midEq ∧ midEq ≤ len then
+        have hb := UInt64.toNat_lt hi
+        have h1 : 0 < midEq.toNat := h.1
+        have h2 : midEq.toNat ≤ hi.toNat - lo.toNat := by have := UInt64.le_iff_toNat_le.mp h.2; rwa [hlen] at this
+        let (b, a) := quicksortPP b a (lo + midEq) hi scratchLen limit false 0 (!toB)
+        (a, b)
+      else (a, b)
+    else
+      if h : 0 < lp ∧ lp < len then
+        have hb := UInt64.toNat_lt hi
+        have h1 : 0 < lp.toNat := h.1
+        have h2 : lp.toNat < hi.toNat - lo.toNat := by have := UInt64.lt_iff_toNat_lt.mp h.2; rwa [hlen] at this
+        let (b, a) := quicksortPP b a (lo + lp) hi scratchLen limit true pivot (!toB)
+        let (b, a) := quicksortPP b a lo (lo + lp) scratchLen limit hasLA la (!toB)
+        (a, b)
+      else (a, b)
+termination_by hi.toNat - lo.toNat
+decreasing_by all_goals u64
+
+def quicksortPP4 (a b : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : UInt64) (toB : Bool) : A × A :=
+  if hlo : hi < lo then (a, b) else
+  have hlen : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.not_lt.mp hlo)
+  let len := hi - lo
+  if len ≤ smallSortThreshold then
+    if toB then
+      let b := copyRange a b lo lo len
+      (a, insertionSortShiftLeft b lo hi (lo + 1))
+    else (insertionSortShiftLeft a lo hi (lo + 1), b)
+  else if limit == 0 then
+    let (a, b) := driftSortEager a b lo hi scratchLen
+    if toB then (a, copyRange a b lo lo len) else (a, b)
+  else
+    let limit := limit - 1
+    let pivotPos := choosePivot a lo hi
+    let pivot := get! a pivotPos
+    let performEq := hasLA && !(lt la pivot)
+    let (b, lp) := if performEq then (b, 0) else ppScanLt4 a b lo hi pivot lo 0 hi
+    let performEq := performEq || lp == 0
+    if performEq then
+      let (b, midEq) := ppScanLe a b lo hi pivot lo 0 hi
+      let a := if toB then a else copyRange b a lo lo midEq
+      if h : 0 < midEq ∧ midEq ≤ len then
+        have hb := UInt64.toNat_lt hi
+        have h1 : 0 < midEq.toNat := h.1
+        have h2 : midEq.toNat ≤ hi.toNat - lo.toNat := by have := UInt64.le_iff_toNat_le.mp h.2; rwa [hlen] at this
+        let (b, a) := quicksortPP4 b a (lo + midEq) hi scratchLen limit false 0 (!toB)
+        (a, b)
+      else (a, b)
+    else
+      if h : 0 < lp ∧ lp < len then
+        have hb := UInt64.toNat_lt hi
+        have h1 : 0 < lp.toNat := h.1
+        have h2 : lp.toNat < hi.toNat - lo.toNat := by have := UInt64.lt_iff_toNat_lt.mp h.2; rwa [hlen] at this
+        let (b, a) := quicksortPP4 b a (lo + lp) hi scratchLen limit true pivot (!toB)
+        let (b, a) := quicksortPP4 b a lo (lo + lp) scratchLen limit hasLA la (!toB)
+        (a, b)
+      else (a, b)
+termination_by hi.toNat - lo.toNat
+decreasing_by all_goals u64
+
+def stableQuicksortPP (v s : A) (lo hi scratchLen : UInt64) : A × A :=
+  let limit := 2 * log2U ((hi - lo) ||| 1)
+  quicksortPP v s lo hi scratchLen limit false 0 false
+
+def stableQuicksortPP4 (v s : A) (lo hi scratchLen : UInt64) : A × A :=
+  let limit := 2 * log2U ((hi - lo) ||| 1)
+  quicksortPP4 v s lo hi scratchLen limit false 0 false
+
+/-- The copy-back quicksort with the same insertion-sort leaves as `quicksortPP` (experiment control). -/
+def quicksortIns (v s : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : UInt64) : A × A :=
+  if hlo : hi < lo then (v, s) else
+  have hlen : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.not_lt.mp hlo)
+  let len := hi - lo
+  if len ≤ smallSortThreshold then (insertionSortShiftLeft v lo hi (lo + 1), s)
+  else if limit == 0 then driftSortEager v s lo hi scratchLen
+  else
+    let limit := limit - 1
+    let pivotPos := choosePivot v lo hi
+    let pivot := get! v pivotPos
+    let performEq := hasLA && !(lt la pivot)
+    let (lp, v, s) := if performEq then (0, v, s) else stablePartition v s lo hi pivotPos false false
+    let performEq := performEq || lp == 0
+    if performEq then
+      let (midEq, v, s) := stablePartition v s lo hi pivotPos true true
+      if h : 0 < midEq ∧ midEq ≤ len then
+        have hb := UInt64.toNat_lt hi
+        have h1 : 0 < midEq.toNat := h.1
+        have h2 : midEq.toNat ≤ hi.toNat - lo.toNat := by have := UInt64.le_iff_toNat_le.mp h.2; rwa [hlen] at this
+        quicksortIns v s (lo + midEq) hi scratchLen limit false 0 else (v, s)
+    else
+      if h : 0 < lp ∧ lp < len then
+        have hb := UInt64.toNat_lt hi
+        have h1 : 0 < lp.toNat := h.1
+        have h2 : lp.toNat < hi.toNat - lo.toNat := by have := UInt64.lt_iff_toNat_lt.mp h.2; rwa [hlen] at this
+        let (v, s) := quicksortIns v s (lo + lp) hi scratchLen limit true pivot
+        quicksortIns v s lo (lo + lp) scratchLen limit hasLA la
+      else (v, s)
+termination_by hi.toNat - lo.toNat
+decreasing_by all_goals u64
+
+def stableQuicksortIns (v s : A) (lo hi scratchLen : UInt64) : A × A :=
+  let limit := 2 * log2U ((hi - lo) ||| 1)
+  quicksortIns v s lo hi scratchLen limit false 0
 
 /-- `stable_quicksort` -/
 def stableQuicksort (v s : A) (lo hi scratchLen : UInt64) : A × A :=

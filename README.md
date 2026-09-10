@@ -28,8 +28,8 @@ compiler and runtime, and clang. `Sorted` is with respect to unsigned `≤` on `
 | `MergeSort/SkipMerge.lean` | Part 3 building block, verified: `mergeKernelS` skips the merge (verified `copyRange`) when the two runs are already in order; `merge_eq_append`; same spec as `mergeKernel`. |
 | `MergeSort/FindRun.lean` | Part 3 building block, verified: `findRun` = maximal ascending / strictly descending natural run (descending reversed in place); `findRun_spec`. |
 | `MergeSort/Net4.lean` | Part 3 building block, verified: 5-comparator sorting network on four values from branchless selects (`net4_sorted`, `net4_perm` by exhaustive case analysis + `omega`); in-place `sort4` with `sort4_spec`; `sort8`/`sort8P` = two `sort4` + `mergeKernel` with `sort8_spec`/`sort8P_spec` (driftsort's `sort8_stable`); as a run former 4.7 ms per 1M vs 6.9 for insertion blocks. |
-| `MergeSort/DriftSort.lean`, `DriftCorrect.lean`, `DriftCorrectLoop.lean` | Part 3, VERIFIED: the bounds-safe driftsort (proof-carrying accessors, verified kernels) and its correctness: `DriftSort.sort_sorted`, `DriftSort.sort_perm` (small sort, stable partition, physical merge, run creation, logical merge, run stack with the `RunsOK` invariant, quicksort with the ancestor-pivot precondition). |
-| `MergeSort/Drift.lean` | Part 3, unverified: line-by-line port of Rust's driftsort for `u64` (total, no `sorry`, unchecked extern accessors for the lab measurement). `lake exe driftbench N [shape]`, `driftbench verify`, `driftbench N phases`. 27.7 ms vs Rust 18.7 at 1M random. |
+| `MergeSort/DriftSort.lean`, `DriftCorrect.lean`, `DriftCorrectLoop.lean` | Part 3, VERIFIED: the bounds-safe driftsort (proof-carrying accessors, verified kernels) and its correctness: `DriftSort.sort_sorted`, `DriftSort.sort_perm` (small sort, stable partition, physical merge, run creation, logical merge, run stack with the `RunsOK` invariant, quicksort with the ancestor-pivot precondition). Its quicksort is *ping-pong*: the partition writes the other buffer and the recursion swaps the buffers, so nothing is copied back (every kernel spec carries a frame clause for the scratch buffer too). The fastest sort in this repository: 27 ms at 1M random, 300 ms at 10M (see the table below). |
+| `MergeSort/Drift.lean` | Part 3, unverified: line-by-line port of Rust's driftsort for `u64` (total, no `sorry`, unchecked extern accessors for the lab measurement), plus the ping-pong quicksort experiment (`quicksortPP`) that the verified version adopted. `lake exe driftbench N [shape]`, `driftbench verify`, `driftbench N phases`, `driftbench N duel R [shape]` (interleaved rounds, min/median). 28 ms vs Rust 18.7 at 1M random. |
 | `NaturalRuns.lean` | Part 3 prototype (total, no proofs for the glue loops): natural runs → level-by-level merges through `mergeKernelS`; hybrid policy falls back to `sortBlocked`. `lake exe naturalruns N` benchmarks five input shapes. |
 | `MergeSort/Export.lean`, `ffi/` | `@[export mergesort_sort_u64]` and a C program that sorts a raw buffer through the verified sort. |
 | `Bench.lean`, `VerifyAll.lean`, `Experiments.lean`, `DoBench.lean` | benchmark, exact cross-check (37 sizes × 3 seeds × 4 input shapes), unverified experiments, `do`-notation comparison. |
@@ -76,6 +76,26 @@ compiler and runtime, and clang. `Sorted` is with respect to unsigned `≤` on `
 | Rust `Vec::sort` on already sorted input | 0.4 | 5 |
 | Lean, same bottom-up loop written in `do` notation | 1010 | 13072 |
 
+### The verified driftsort (Sept 10), interleaved rounds, medians, ms
+
+`lake exe driftbench 1000000 duel 9 <shape>` runs the three sorts in interleaved rounds on the same input
+(handed over uniquely, allocation of the scratch inside the clock, as in Rust's harness).
+
+| input (1M `u64`) | `DriftSort.sort` (verified) | `Drift.sort` (unverified port) | `sortBlocked` (verified, Part 2) | Rust `Vec::sort` |
+|---|---|---|---|---|
+| random | **27.0** | 28.3 | 29.0 | 18.7 |
+| random, 10M | **301** | 344 | 415 | 270 |
+| 8 sorted runs | **4.9** | 7.8 | 28.6 | 7.3 |
+| sawtooth of 1000 | **17.2** | 23.9 | 28.1 | 23 |
+| sorted | **0.48** | 0.63 | 27.7 | 0.4 |
+| reversed | **0.81** | 0.94 | 27.6 | 0.6 |
+| 1000 distinct values | 11.0 | 11.0 | 28.5 | |
+| sorted + 1% swaps | 22.0 | 21.7 | 28.5 | 14 |
+
+(Absolute numbers drift by ±1 ms between runs of the whole suite; the interleaving keeps the comparison
+fair. The verified sort zero-fills its 8 MB scratch buffer, the port and Rust do not: 0.25 ms of the
+1%-swaps difference.)
+
 Scaling (`sortdemo`, verified `sortAdaptive2`, vs `Vec::sort`), ms:
 
 | n | Lean | driftsort |
@@ -109,6 +129,19 @@ Scaling (`sortdemo`, verified `sortAdaptive2`, vs `Vec::sort`), ms:
 10. Proof engineering: keep hypotheses in `Nat` form (`have h : k.toNat < n.toNat := h` right after `if h : k < n`),
    rewrite only the goal with a small simp set + `omega`; `simp at *` cannot touch an `if`-hypothesis that
    later proof terms depend on.
+11. Ping-pong quicksort (`DriftSort.quicksort`): partition into the other buffer and recurse with the
+   buffers swapped instead of copying back (Rust cannot, its `T` may have destructors). One pass less per
+   level: 30 → 26 ms at 1M. The price is a *frame clause for the scratch buffer* in every kernel spec, since
+   a finished sibling's result lives in what the next call uses as scratch.
+12. What the compiler sees decides the inner loop: the partition predicate passed as `goesLeft eq pivot` was
+   specialised on a `Bool` *variable* (the literal `false` had been CSE'd with `limit == 0`), so the mode was
+   tested per element; two named predicates (`ltPivot`/`lePivot`) gave two loops (34.6 → 30 ms). Storing the
+   element *before* computing the `0/1` count lets clang fold the count into the compare (`adc`): 27 → 25.4 ms
+   on the quicksort alone. A `structure` result with a `UInt64` field is stored unboxed (one allocation per
+   partition instead of two).
+13. Measured and not kept: 2-way / 4-way unrolled scans with one exclusivity check (the scan is bound by
+   µops, not by the check: ≤ 0.3 ms), running write positions instead of a count, inlining the small sort
+   (its pair is built in a join point anyway), `mi_zalloc` for the scratch (mimalloc memsets on reuse).
 
 ## Executable and memory
 

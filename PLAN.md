@@ -70,6 +70,14 @@ kernel by kernel; the run stack uses the `RunsOK` invariant (not the `RunsOK`/`m
 earlier, which was for the natural-run prototype). Remaining for Part 3: speed of the bounds-safe version
 (batched stores, `memcpy` copies as proof-carrying primitives), then the chapter text.
 
+**Sept 10 morning: speed done too.** The verified driftsort is now the fastest sort in the repository:
+1M random 27.0 ms (port 28.3, `sortBlocked` 29.0, Rust 18.7), 10M 301 (port 344), 8 runs 4.9 (port 7.8),
+sawtooth 17.2 (23.9), sorted 0.48 (0.63). Levers: named partition predicates (specialisation), the ping-pong
+quicksort with scratch-frame clauses in every kernel spec, an unboxed scan result, store-before-count in the
+scan (`adc`), a single-run fast path before allocating. Chapter material: "the proof pays for itself"
+(the ping-pong trick is only safe because every kernel is proved not to touch anything outside its range in
+*both* buffers) and "read the C" (three of the five wins came from the generated C / assembly).
+
 ### Part 3, step 0 — DONE (unverified): the exact driftsort port, `MergeSort/Drift.lean`
 Decision (Gregor, 15:40): port the exact Rust driftsort first, unverified, then verify kernel by kernel.
 Status: ported 1:1 (see `SESSION-REPORT.md` for the table), correct on 2472 cross-checks, 27.7 ms vs Rust 18.7

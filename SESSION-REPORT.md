@@ -168,3 +168,44 @@ make the match reduce. (5) `simp` cannot rewrite the index of `set` (the bounds 
 the induction hypothesis to the goal's own terms and evaluate conditionals only in proof-free side goals.
 (6) Bookkeeping proofs after a well-founded recursive call must not let the kernel look into the call
 (`simpa` did, causing "deep recursion"); use explicit lemma applications.
+
+## Morning of Sept 10: the verified driftsort is the fastest sort here
+Goal restated by Gregor: the *verified* driftsort must be faster than the unverified port (27–28 ms at 1M
+random) and than the verified `sortBlocked` (28–30). Done, with interleaved duels (`driftbench N duel R shape`;
+medians, ms, verified / port / `sortBlocked`): random 27.0 / 28.3 / 29.0; random 10M 301 / 344 / 415;
+8 runs 4.9 / 7.8 / 28.6; sawtooth 17.2 / 23.9 / 28.1; sorted 0.48 / 0.63 / 27.7; reversed 0.81 / 0.94 / 27.6;
+1000 distinct values 11.0 / 11.0 / 28.5; sorted + 1% swaps 22.0 / 21.7 / 28.5 (Rust `Vec::sort`: 18.7 random,
+270 at 10M). All exact matches; `driftbench verify` 4944 sorts, 0 mismatches; proofs on standard axioms.
+
+What did it (in order):
+1. Two partition predicates as named definitions (`ltPivot`, `lePivot`) instead of `goesLeft eq pivot`: the
+   compiler had CSE'd the literal `false` with the value of `limit == 0` and specialised the scan on a
+   *variable*, testing the mode per element. 34.6 → 30.0 ms on the quicksort.
+2. Ping-pong quicksort: `stablePartition` writes `b[lo, hi)` (left part in order, right part reversed, which
+   `u64` cannot observe) and the recursion continues with `(b, a)`, delivering into `a` or `b` by a parity
+   flag `toB`; leaves copy their 32 elements when they must land in the other buffer; the eager fallback
+   and the equal-element partition are handled the same way. Prototype first (`Drift.quicksortPP`, 168-sort
+   check): 31.3 → 26.2 with the same leaves. Proof: `quicksort_spec` restated for `pick toB r` with lemmas
+   `pick_not`/`pick_at'`, and — the real cost — a scratch-buffer frame clause threaded through
+   `smallSortRest_spec`, `smallSort_spec`, `mergeRuns_spec`, `QuickSpec`, `createRun(Rest)_spec`,
+   `logicalMerge_spec`, `collapse_spec`, `driftLoop_spec`, `driftSort_spec`: a finished sibling's result
+   lives in the buffer the next call scribbles as scratch. 30.0 → 25.4–26 ms on the quicksort.
+3. The scan result as a `structure Scan` (buffer + `UInt64`): the count is stored unboxed, one allocation per
+   partition instead of two.
+4. Store first, count after (`let s' := s.set dst x; let d := if gl then 1 else 0`): clang then emits
+   `cmp; adc` for the running count instead of `setb; movzx; add` — 27.0 → 25.4 ms on the whole quicksort
+   with the scratch given (duel2), the single biggest step. The scan is µop-bound at ~3.2–3.6 cycles per
+   element in every variant, in L1 as much as in memory.
+5. A sorted or reversed input is one natural run: `sort` runs `findRun` once before allocating the scratch
+   and returns the run (its proof: `findRun_spec` + `perm_of_sub`). Sorted 0.86 → 0.48 ms.
+
+Measured and not kept: 2-way (`set2`) and 4-way (`set4i`) unrolled scans (the lab 4-way scan is 0.79 vs
+0.83 ms per 1M elements, whole sort within 0.3 ms), two running write positions instead of count+reverse
+position (no change in µops), `@[inline]` on the small sort (its pair is built in a join point), `mi_zalloc`
+for the scratch (mimalloc memsets on reuse; the honest cost of the zero-filled 8 MB scratch is ~0.25 ms and
+is the whole difference on the 1%-swaps input).
+
+Harness lesson: single sequential runs of each sort drift by ±1 ms with the machine's state; only interleaved
+rounds on the same input (`duel`) are comparable. Where the remaining 8 ms to Rust go: Rust's partition is
+~2.5 cycles per element including the copy-back (no exclusivity check, tighter codegen), its small sort 6.7
+vs 7.7 ms per 1M, and it allocates its scratch uninitialised.

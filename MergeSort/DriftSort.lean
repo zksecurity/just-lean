@@ -112,95 +112,70 @@ def mergeRuns (v s : A) (lo mid hi : UInt64)
 
 /-! ## The stable partition (`quicksort.rs`) -/
 
-/-- The partition predicate: `x < pivot` (first partition) or `x ≤ pivot` (equal-element partition). -/
-@[inline] def goesLeft (eq : Bool) (pivot x : UInt64) : Bool := if eq then decide (x ≤ pivot) else decide (x < pivot)
+/-- The two partition predicates. Separate definitions (no `Bool` literal at the call site), so that the
+    compiler specialises the scan on each of them instead of on a shared mode flag. -/
+def ltPivot (pivot x : UInt64) : Bool := decide (x < pivot)
+
+def lePivot (pivot x : UInt64) : Bool := decide (x ≤ pivot)
+
+/-- Both modes, for the specification. -/
+def goesLeft (eq : Bool) (pivot : UInt64) : UInt64 → Bool := if eq then lePivot pivot else ltPivot pivot
+
+/-- The result of a partition scan: the buffer and the size of the left part. (A structure, so that the
+    `UInt64` is stored unboxed: one allocation per partition instead of two.) -/
+structure Scan where
+  buf : A
+  nl : UInt64
 
 /-- The scan: `v[i, hi)` still to do, `nl` elements already on the left (`s[lo, lo+nl)`), the right
-    ones at the back of `s[lo, hi)` in reverse order (the `r`-th one at `hi - 1 - r`). Branchless:
-    the destination is selected, then one store. Returns `s` and the final `nl`. -/
-def partScan (v : @& A) (s : A) (lo hi i nl pivot : UInt64) (eq : Bool)
+    ones at the back of `s[lo, hi)` in reverse order. `sv = hi - (i - lo)` is a running position: after its
+    decrement, `sv + nl` is the write position of the next right element (`hi - 1 - r`). Branchless: one
+    select, one store. The predicate is a parameter so that each partition mode compiles to its own loop. -/
+@[specialize] def partScan (p : UInt64 → Bool) (v : @& A) (s : A) (lo hi i nl sv : UInt64)
     (hv : hi.toNat ≤ v.size := by u64) (hs : hi.toNat ≤ s.size := by u64) (hssz : s.size < 2 ^ 64 := by u64)
     (hi1 : lo.toNat ≤ i.toNat := by u64) (_hi2 : i.toNat ≤ hi.toNat := by u64)
-    (hnl : nl.toNat ≤ i.toNat - lo.toNat := by u64) :
-    { p : A × UInt64 // p.1.size = s.size ∧ nl.toNat ≤ p.2.toNat ∧ p.2.toNat ≤ nl.toNat + (hi.toNat - i.toNat) } :=
+    (hnl : nl.toNat ≤ i.toNat - lo.toNat := by u64)
+    (hsv : sv.toNat = hi.toNat - (i.toNat - lo.toNat) := by u64) :
+    { q : Scan // q.buf.size = s.size ∧ nl.toNat ≤ q.nl.toNat ∧ q.nl.toNat ≤ nl.toNat + (hi.toNat - i.toNat) } :=
   if h : i < hi then
     have hlt : i.toNat < hi.toNat := UInt64.lt_iff_toNat_lt.mp h
     have hb := UInt64.toNat_lt hi
     let x := v.get i
-    let gl := goesLeft eq pivot x
-    let r := i - lo - nl
-    have er : r.toNat = i.toNat - lo.toNat - nl.toNat := by
-      show (i - lo - nl).toNat = _
-      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hi1)]; omega)),
-        UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hi1)]
-    have e1 : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
-    have e0 : (hi - 1).toNat = hi.toNat - 1 := by
-      rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp; omega))]; simp
-    have e2 : (hi - 1 - r).toNat = (hi - 1).toNat - r.toNat :=
-      UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [e0]; omega))
-    let dst := if gl then lo + nl else hi - 1 - r
-    have hdst : dst.toNat < hi.toNat := by
-      show (if gl then lo + nl else hi - 1 - r).toNat < _
+    let gl := p x
+    let sv' := sv - 1
+    have esv : sv'.toNat = sv.toNat - 1 := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp; omega))
+    let base := if gl then lo else sv'
+    have hbase : base.toNat = (if gl then lo.toNat else hi.toNat - 1 - (i.toNat - lo.toNat)) := by
+      show (if gl then lo else sv').toNat = _
       split <;> omega
+    let dst := base + nl
+    have hdst : dst.toNat = base.toNat + nl.toNat := toNat_add_of_lt _ _ (by rw [hbase]; split <;> omega)
+    have hdst' : dst.toNat < hi.toNat := by rw [hdst, hbase]; split <;> omega
+    -- (the store first, the count after: the C compiler then folds the count into the compare)
+    let s' := s.set dst x (by omega)
+    have hs' : s'.size = s.size := size_set _ _ _ _
     let d : UInt64 := if gl then 1 else 0
     have hd : d.toNat ≤ 1 := by show (if gl then (1 : UInt64) else 0).toNat ≤ 1; split <;> simp
     have en : (nl + d).toNat = nl.toNat + d.toNat := toNat_add_of_lt _ _ (by omega)
     have ei : (i + 1).toNat = i.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
-    let rec_ := partScan v (s.set dst x (by omega)) lo hi (i + 1) (nl + d) pivot eq (hv := hv) (hs := by simp; exact hs)
-      (hssz := by simp; exact hssz) (hi1 := by omega) (_hi2 := by omega) (hnl := by omega)
-    ⟨rec_.1, rec_.2.1.trans (size_set _ _ _ _), Nat.le_trans (by rw [en]; omega) rec_.2.2.1,
+    let rec_ := partScan p v s' lo hi (i + 1) (nl + d) sv' (hv := hv) (hs := by rw [hs']; exact hs)
+      (hssz := by rw [hs']; exact hssz) (hi1 := by omega) (_hi2 := by omega) (hnl := by omega) (hsv := by rw [esv, ei]; omega)
+    ⟨rec_.1, rec_.2.1.trans hs', Nat.le_trans (by rw [en]; omega) rec_.2.2.1,
       Nat.le_trans rec_.2.2.2 (by rw [en, ei]; omega)⟩
-  else ⟨(s, nl), rfl, by simp, by simp⟩
+  else ⟨⟨s, nl⟩, rfl, by simp, by simp⟩
 termination_by hi.toNat - i.toNat
 decreasing_by all_goals u64
 
-/-- `dst[k + j] := src[last - j]` for `j ∈ [j0, n)` (the reversed copy-back of the right part): the reference loop. -/
-def copyRevLoop (src : @& A) (dst : A) (k last j n : UInt64)
-    (hdsz : dst.size < 2 ^ 64 := by u64) (hk : k.toNat + n.toNat ≤ dst.size := by u64)
-    (hl : n.toNat ≤ last.toNat + 1 := by u64) (hls : last.toNat < src.size := by u64) (_hj : j.toNat ≤ n.toNat := by u64) :
-    { b : A // b.size = dst.size } :=
-  if h : j < n then
-    have h : j.toNat < n.toNat := h
-    have hb := UInt64.toNat_lt last
-    have ekj : (k + j).toNat = k.toNat + j.toNat := toNat_add_of_lt _ _ (by omega)
-    have elj : (last - j).toNat = last.toNat - j.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by omega))
-    have ej1 : (j + 1).toNat = j.toNat + 1 := toNat_add_of_lt _ _ (by simp; omega)
-    have hget : (last - j).toNat < src.size := by rw [elj]; omega
-    have hset : (k + j).toNat < dst.size := by rw [ekj]; omega
-    castSize (copyRevLoop src (dst.set (k + j) (src.get (last - j) hget) hset) k last (j + 1) n
-      (hdsz := by simp; exact hdsz) (hk := by simp; exact hk) (hl := hl) (hls := hls) (_hj := by omega)) (by simp)
-  else ⟨dst, rfl⟩
-termination_by n.toNat - j.toNat
-decreasing_by u64
-
-/-- The reversed copy: logically `copyRevLoop`, at runtime one exclusivity check and a plain C loop that the
-    compiler vectorises. -/
-@[extern c inline "({ lean_object* _d = #2; if (__builtin_expect(!lean_is_exclusive(_d), 0)) _d = lean_copy_float_array(_d); uint64_t* _dp = (uint64_t*)lean_sarray_cptr(_d); const uint64_t* _sp = (const uint64_t*)lean_sarray_cptr(#1); for (uint64_t _i = #5; _i < #6; _i++) _dp[#3 + _i] = _sp[#4 - _i]; _d; })"]
-def copyRev (src : @& A) (dst : A) (k last j n : UInt64)
-    (hdsz : dst.size < 2 ^ 64 := by u64) (hk : k.toNat + n.toNat ≤ dst.size := by u64)
-    (hl : n.toNat ≤ last.toNat + 1 := by u64) (hls : last.toNat < src.size := by u64) (_hj : j.toNat ≤ n.toNat := by u64) :
-    { b : A // b.size = dst.size } :=
-  copyRevLoop src dst k last j n hdsz hk hl hls _hj
-
-/-- `stable_partition` of `v[lo, hi)` by `pivot`: left part (`goesLeft`) then right part, both in the
-    original order; returns the size of the left part. -/
-def stablePartition (v s : A) (lo hi pivot : UInt64) (eq : Bool)
-    (hv : hi.toNat ≤ v.size := by u64) (hs : hi.toNat ≤ s.size := by u64)
-    (hvsz : v.size < 2 ^ 64 := by u64) (hssz : s.size < 2 ^ 64 := by u64)
-    (hlt : lo.toNat < hi.toNat := by u64) :
-    { r : UInt64 × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧ r.1.toNat ≤ hi.toNat - lo.toNat } :=
-  have hlo : lo.toNat ≤ hi.toNat := by omega
-  let ⟨(s1, nl), hs1, _, hnl⟩ := partScan v s lo hi lo 0 pivot eq hv hs hssz (by omega) hlo (by simp)
-  have hnl' : nl.toNat ≤ hi.toNat - lo.toNat := by simpa using hnl
-  have e : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
-  let ⟨v1, hv1⟩ := copyRange lo (lo + nl) s1 v hvsz (by rw [hs1, e]; omega) (by rw [e]; omega)
-  have ehi1 : (hi - 1).toNat = hi.toNat - 1 := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by simp; omega))
-  have e1 : (hi - lo).toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hlo)
-  have erest : (hi - lo - nl).toNat = hi.toNat - lo.toNat - nl.toNat := by
-    rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr (by rw [e1]; omega)), e1]
-  let ⟨v2, hv2⟩ := copyRev s1 v1 (lo + nl) (hi - 1) 0 (hi - lo - nl) (by rw [hv1]; exact hvsz)
-    (by rw [hv1, e, erest]; omega) (by rw [erest, ehi1]; omega) (by rw [hs1, ehi1]; omega) (by simp)
-  ⟨(nl, v2, s1), hv2.trans hv1, hs1, hnl'⟩
+/-- `stable_partition` of `a[lo, hi)` by `p`, into `b[lo, hi)`: the `p`-elements first, in their order,
+    then the others (in reverse order, which is unobservable for `u64`s). `a` is left untouched and the
+    quicksort continues with the buffers swapped, so nothing is copied back. Returns the size of the left
+    part. Specialised on `p`, so each partition mode is its own scan loop. -/
+@[specialize] def stablePartition (p : UInt64 → Bool) (a : @& A) (b : A) (lo hi : UInt64)
+    (ha : hi.toNat ≤ a.size := by u64) (hb : hi.toNat ≤ b.size := by u64) (hbsz : b.size < 2 ^ 64 := by u64)
+    (hlo : lo.toNat ≤ hi.toNat := by u64) :
+    { r : Scan // r.buf.size = b.size ∧ r.nl.toNat ≤ hi.toNat - lo.toNat } :=
+  let ⟨⟨b1, nl⟩, hb1, _, hnl⟩ := partScan p a b lo hi lo 0 hi ha hb hbsz (by omega) hlo (by simp) (by simp)
+  ⟨⟨b1, nl⟩, hb1, by simpa using hnl⟩
 
 /-! ## Pivot selection (`shared/pivot.rs`), returning an index with its bound -/
 
@@ -469,57 +444,76 @@ def driftSortEager (v s : A) (lo hi scratchLen : UInt64) (hv : hi.toNat ≤ v.si
     (hvsz : v.size < 2 ^ 64) (hssz : s.size < 2 ^ 64) (hlo : lo.toNat ≤ hi.toNat) : VS v s :=
   driftSort insertionQuick v s lo hi scratchLen true hv hs hvsz hssz hlo
 
-/-- `quicksort` on `v[lo, hi)`; `hasLA`/`la` encode `left_ancestor_pivot`. -/
-def quicksort (v s : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : UInt64)
-    (hv : hi.toNat ≤ v.size) (hs : hi.toNat ≤ s.size) (hvsz : v.size < 2 ^ 64) (hssz : s.size < 2 ^ 64)
-    (hlo : lo.toNat ≤ hi.toNat) : VS v s :=
+/-- `quicksort` on `a[lo, hi)`, ping-pong style: the partition writes `b[lo, hi)` and the recursion
+    continues with the buffers swapped, so nothing is copied back (`a` is left as it was and becomes the
+    scratch). The sorted range lands in `b` if `toB`, else in `a`; a leaf copies its block over when it
+    has to. `hasLA`/`la` encode `left_ancestor_pivot`. -/
+def quicksort (a b : A) (lo hi scratchLen limit : UInt64) (hasLA : Bool) (la : UInt64) (toB : Bool)
+    (ha : hi.toNat ≤ a.size) (hb : hi.toNat ≤ b.size) (hasz : a.size < 2 ^ 64) (hbsz : b.size < 2 ^ 64)
+    (hlo : lo.toNat ≤ hi.toNat) : VS a b :=
   have hbnd := UInt64.toNat_lt hi
   let len := hi - lo
   have hlen : len.toNat = hi.toNat - lo.toNat := UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.mpr hlo)
-  if h32 : len ≤ smallSortThreshold then smallSort v s lo hi hv hs hvsz hssz hlo
+  if h32 : len ≤ smallSortThreshold then
+    if toB then
+      let ⟨b1, hb1⟩ := copyRange lo hi a b hbsz ha hb
+      let ⟨(b2, a2), hb2, ha2⟩ := smallSort b1 a lo hi (by rw [hb1]; exact hb) ha (by rw [hb1]; exact hbsz) hasz hlo
+      ⟨(a2, b2), ha2, hb2.trans hb1⟩
+    else smallSort a b lo hi ha hb hasz hbsz hlo
   else
     have h32 : 32 < len.toNat := by
       have := UInt64.not_le.mp h32; have := UInt64.lt_iff_toNat_lt.mp this
       simpa [smallSortThreshold] using this
-    if limit == 0 then driftSortEager v s lo hi scratchLen hv hs hvsz hssz hlo
+    if limit == 0 then
+      let ⟨(a1, b1), ha1, hb1⟩ := driftSortEager a b lo hi scratchLen ha hb hasz hbsz hlo
+      have ha1' : a1.size = a.size := ha1
+      have hb1' : b1.size = b.size := hb1
+      if toB then
+        let ⟨b2, hb2⟩ := copyRange lo hi a1 b1 (by rw [hb1']; exact hbsz) (by rw [ha1']; exact ha) (by rw [hb1']; exact hb)
+        ⟨(a1, b2), ha1', hb2.trans hb1'⟩
+      else ⟨(a1, b1), ha1', hb1'⟩
     else
       let limit := limit - 1
-      let ⟨pp, hpp⟩ := choosePivot v lo hi hvsz hv (by omega)
-      let pivot := v.get pp (by omega)
+      let ⟨pp, hpp⟩ := choosePivot a lo hi hasz ha (by omega)
+      let pivot := a.get pp (by omega)
       let performEq := hasLA && decide (pivot ≤ la)
-      let ⟨(nl, v1, s1), hv1, hs1, hnl⟩ :
-          { r : UInt64 × A × A // r.2.1.size = v.size ∧ r.2.2.size = s.size ∧ r.1.toNat ≤ hi.toNat - lo.toNat } :=
-        if performEq then ⟨(0, v, s), rfl, rfl, by simp⟩ else stablePartition v s lo hi pivot false hv hs hvsz hssz (by omega)
-      have hv1' : v1.size = v.size := hv1
-      have hs1' : s1.size = s.size := hs1
+      let ⟨⟨b1, nl⟩, hb1, hnl⟩ : { r : Scan // r.buf.size = b.size ∧ r.nl.toNat ≤ hi.toNat - lo.toNat } :=
+        if performEq then ⟨⟨b, 0⟩, rfl, by simp⟩ else stablePartition (ltPivot pivot) a b lo hi ha hb hbsz hlo
+      have hb1' : b1.size = b.size := hb1
       have hnl' : nl.toNat ≤ hi.toNat - lo.toNat := hnl
       if performEq || nl == 0 then
-        let ⟨(midEq, v2, s2), hv2, hs2, hme⟩ := stablePartition v1 s1 lo hi pivot true (by rw [hv1']; exact hv)
-          (by rw [hs1']; exact hs) (by rw [hv1']; exact hvsz) (by rw [hs1']; exact hssz) (by omega)
-        have hv2' : v2.size = v1.size := hv2
-        have hs2' : s2.size = s1.size := hs2
+        -- the equal-element partition, again from the untouched `a`: `b2[lo, lo + midEq)` is all pivots
+        let ⟨⟨b2, midEq⟩, hb2, hme⟩ := stablePartition (lePivot pivot) a b1 lo hi ha (by rw [hb1']; exact hb)
+          (by rw [hb1']; exact hbsz) hlo
+        have hb2' : b2.size = b1.size := hb2
         have hme' : midEq.toNat ≤ hi.toNat - lo.toNat := hme
+        have em : (lo + midEq).toNat = lo.toNat + midEq.toNat := toNat_add_of_lt _ _ (by omega)
+        -- ... and has to land where the result goes
+        let ⟨a1, ha1⟩ : { r : A // r.size = a.size } :=
+          if toB then ⟨a, rfl⟩ else copyRange lo (lo + midEq) b2 a hasz (by rw [hb2', hb1', em]; omega) (by rw [em]; omega)
+        have ha1' : a1.size = a.size := ha1
         if h : 0 < midEq.toNat then
-          have em : (lo + midEq).toNat = lo.toNat + midEq.toNat := toNat_add_of_lt _ _ (by omega)
-          castVS (quicksort v2 s2 (lo + midEq) hi scratchLen limit false 0 (by rw [hv2', hv1']; exact hv) (by rw [hs2', hs1']; exact hs)
-            (by rw [hv2', hv1']; exact hvsz) (by rw [hs2', hs1']; exact hssz) (by rw [em]; omega)) (hv2'.trans hv1') (hs2'.trans hs1')
-        else ⟨(v2, s2), hv2'.trans hv1', hs2'.trans hs1'⟩
+          let ⟨(b3, a3), hb3, ha3⟩ := quicksort b2 a1 (lo + midEq) hi scratchLen limit false 0 (!toB) (by rw [hb2', hb1']; exact hb)
+            (by rw [ha1']; exact ha) (by rw [hb2', hb1']; exact hbsz) (by rw [ha1']; exact hasz) (by rw [em]; omega)
+          ⟨(a3, b3), ha3.trans ha1', hb3.trans (hb2'.trans hb1')⟩
+        else ⟨(a1, b2), ha1', hb2'.trans hb1'⟩
       else
         if h : 0 < nl.toNat ∧ nl.toNat < len.toNat then
           have en : (lo + nl).toNat = lo.toNat + nl.toNat := toNat_add_of_lt _ _ (by omega)
-          let ⟨(v2, s2), hv2, hs2⟩ := quicksort v1 s1 (lo + nl) hi scratchLen limit true pivot (by rw [hv1']; exact hv)
-            (by rw [hs1']; exact hs) (by rw [hv1']; exact hvsz) (by rw [hs1']; exact hssz) (by rw [en]; omega)
-          have hv2' : v2.size = v1.size := hv2
-          have hs2' : s2.size = s1.size := hs2
-          castVS (quicksort v2 s2 lo (lo + nl) scratchLen limit hasLA la (by rw [hv2', hv1', en]; omega) (by rw [hs2', hs1', en]; omega)
-            (by rw [hv2', hv1']; exact hvsz) (by rw [hs2', hs1']; exact hssz) (by rw [en]; omega)) (hv2'.trans hv1') (hs2'.trans hs1')
-        else ⟨(v1, s1), hv1', hs1'⟩
+          let ⟨(b2, a2), hb2, ha2⟩ := quicksort b1 a (lo + nl) hi scratchLen limit true pivot (!toB) (by rw [hb1']; exact hb) ha
+            (by rw [hb1']; exact hbsz) hasz (by rw [en]; omega)
+          have hb2' : b2.size = b1.size := hb2
+          have ha2' : a2.size = a.size := ha2
+          let ⟨(b3, a3), hb3, ha3⟩ := quicksort b2 a2 lo (lo + nl) scratchLen limit hasLA la (!toB) (by rw [hb2', hb1', en]; omega)
+            (by rw [ha2', en]; omega) (by rw [hb2', hb1']; exact hbsz) (by rw [ha2']; exact hasz) (by rw [en]; omega)
+          ⟨(a3, b3), ha3.trans ha2', hb3.trans (hb2'.trans hb1')⟩
+        else ⟨(a, b1), rfl, hb1'⟩
 termination_by hi.toNat - lo.toNat
 decreasing_by all_goals (first | (simp only [em]; omega) | (simp only [en]; omega))
 
 def stableQuicksort (v s : A) (lo hi scratchLen : UInt64) (hv : hi.toNat ≤ v.size) (hs : hi.toNat ≤ s.size)
     (hvsz : v.size < 2 ^ 64) (hssz : s.size < 2 ^ 64) (hlo : lo.toNat ≤ hi.toNat) : VS v s :=
-  quicksort v s lo hi scratchLen (2 * log2U ((hi - lo) ||| 1)) false 0 hv hs hvsz hssz hlo
+  quicksort v s lo hi scratchLen (2 * log2U ((hi - lo) ||| 1)) false 0 false hv hs hvsz hssz hlo
 
 def driftSortFull (v s : A) (lo hi scratchLen : UInt64) (hv : hi.toNat ≤ v.size) (hs : hi.toNat ≤ s.size)
     (hvsz : v.size < 2 ^ 64) (hssz : s.size < 2 ^ 64) (hlo : lo.toNat ≤ hi.toNat) : VS v s :=
@@ -528,17 +522,23 @@ def driftSortFull (v s : A) (lo hi scratchLen : UInt64) (hv : hi.toNat ≤ v.siz
 
 def maxLenAlwaysInsertion : UInt64 := 20
 
-/-- driftsort for `u64`, bounds-safe. -/
+/-- driftsort for `u64`, bounds-safe. An input that is one natural run (sorted, or descending and
+    reversed in place) needs no scratch buffer; everything else gets one of the same size. -/
 def sort (xs : A) (hsz : xs.size < 2 ^ 62) : A :=
   let n : UInt64 := xs.size.toUInt64
   have hn : n.toNat = xs.size := by simp [n]; omega
-  if n < 2 then xs
+  if h2 : n < 2 then xs
   else if n ≤ maxLenAlwaysInsertion then (insertionSortRange 0 n 0 xs (by omega) (by omega) (by simp)).1
   else
-    let s := zeros xs.size
-    have hs : s.size = xs.size := by simp [s]
-    let eager := n ≤ smallSortThreshold * 2
-    if eager then (driftSortEager xs s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
-    else (driftSortFull xs s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
+    have h2 : 2 ≤ n.toNat := by have := UInt64.not_lt.mp h2; have := UInt64.le_iff_toNat_le.mp this; simpa using this
+    let ⟨(e, xs1), _, _, hxs1⟩ := findRun 0 n xs (by omega) (by omega) (by simp; omega)
+    have hxs1' : xs1.size = xs.size := hxs1
+    if e = n then xs1
+    else
+      let s := zeros xs.size
+      have hs : s.size = xs.size := by simp [s]
+      let eager := n ≤ smallSortThreshold * 2
+      if eager then (driftSortEager xs1 s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
+      else (driftSortFull xs1 s 0 n n (by omega) (by rw [hs]; omega) (by omega) (by rw [hs]; omega) (by simp)).1.1
 
 end DriftSort
